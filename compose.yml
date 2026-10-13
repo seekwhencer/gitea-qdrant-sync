@@ -1,0 +1,21 @@
+services:
+  gitea-sync:
+    build: .
+    container_name: gitea-qdrant-sync
+    restart: unless-stopped
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_PORT=${QDRANT_PORT}
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION}
+      - QDRANT_CHUNK_MAX_SIZE=${QDRANT_CHUNK_MAX_SIZE}
+      - EMBEDDINGS_API=${EMBEDDINGS_API}
+      - EMBEDDINGS_URL=${EMBEDDINGS_URL}
+      - EMBEDDINGS_MODEL=${EMBEDDINGS_MODEL}
+      - CHAT_API=${CHAT_API}
+      - CHAT_URL=${CHAT_URL}
+      - CHAT_MODEL=${CHAT_MODEL}
+      - GITEA_API_URL=${GITEA_API_URL}
+      - GITEA_TOKEN=${GITEA_TOKEN}
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"

@@ -1,0 +1,7 @@
+.env
+.env.default
+node_modules
+.vscode
+.kilo
+compose.yml
+Dockerfile

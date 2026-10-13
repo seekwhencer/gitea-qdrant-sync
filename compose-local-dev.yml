@@ -1,0 +1,18 @@
+services:
+  gitea-sync:
+    build: .
+    container_name: gitea-qdrant-sync
+    restart: unless-stopped
+    command: ["npm", "run", "dev"]
+    networks:
+      - proxy_default
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    environment:
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_PORT=${SERVER_PORT}
+
+networks:
+  proxy_default:
+    external: true
