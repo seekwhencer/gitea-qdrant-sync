@@ -1,10 +1,11 @@
-import express from 'express';
+
+
+import { Config } from './server/config.js';
 import { GiteaQdrantSync } from './server/sync.js';
 import { Search } from './server/search.js';
 import { Qdrant } from './server/qdrant.js';
 import { Llm } from './server/llm.js';
-import { Config } from './server/config.js';
-import { Router } from './server/routes.js';
+import { Server } from './server/index.js';
 
 class App {
     constructor(config = new Config()) {
@@ -38,21 +39,15 @@ class App {
             llm: this.llm
         });
 
-        // create
-        this.app = express();
-
-        // append the routes
-        this.router = new Router(this.sync, this.search, express);
-        this.app.use(this.router);
+        this.server = new Server(this.config, this.sync, this.search);
     }
 
-    listen() {
-        return this.app.listen(this.config.serverPort, () => {
-            console.log(`Gitea-Qdrant-Sync running on port ${this.config.serverPort}`);
-        });
+    run() {
+        return this.server.start();
     }
+
 }
 
-new App().listen();
+new App().run();
 
 export { App };

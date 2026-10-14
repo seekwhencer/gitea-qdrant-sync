@@ -1,7 +1,14 @@
+
+import express from 'express';
+import { FrontendRouter } from './frontendRouter.js';
+
 class Router {
-    constructor(sync, search, express) {
+    constructor(config, sync, search, httpServer) {
         this.sync = sync;
         this.search = search;
+        this.config = config;
+
+        this.httpServer = httpServer;
 
         this.router = express.Router();
         this.router.use(express.json());
@@ -12,11 +19,13 @@ class Router {
     }
 
     define() {
-        
+
         //
-        this.router.get('/health', (req, res) => {
-            res.status(200).json({ status: 'ok' });
-        });
+        const frontendRouter = new FrontendRouter(this.config, this.sync, this.search, this.httpServer);
+        this.router.use('/', frontendRouter);
+
+        //
+        this.router.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 
         //
         this.router.post('/webhook', async (req, res) => {
@@ -51,6 +60,7 @@ class Router {
                 res.status(500).send('Internal Server Error');
             }
         });
+
     }
 }
 

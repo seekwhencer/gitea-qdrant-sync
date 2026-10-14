@@ -4,6 +4,7 @@ services:
     container_name: gitea-qdrant-sync
     restart: unless-stopped
     environment:
+      - NODE_ENV=production
       - SERVER_PORT=${SERVER_PORT}
       - QDRANT_URL=${QDRANT_URL}
       - QDRANT_PORT=${QDRANT_PORT}

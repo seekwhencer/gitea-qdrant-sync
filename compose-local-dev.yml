@@ -9,7 +9,9 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
+      - /app/frontend/node_modules
     environment:
+      - NODE_ENV=development
       - VIRTUAL_HOST=${VIRTUAL_HOST}
       - VIRTUAL_PORT=${SERVER_PORT}
 

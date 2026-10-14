@@ -14,7 +14,7 @@ class Search {
         chatApi,
         chatUrl,
         chatModel,
-        topK = 10
+        topK = 20
     } = {}) {
         this.qdrantCollection = qdrantCollection;
         this.topK = topK;

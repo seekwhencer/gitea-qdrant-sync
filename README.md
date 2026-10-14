@@ -6,7 +6,10 @@ Markdown files are fetched, split into chunks, converted into embeddings with th
 help of an LLM (e.g. [Ollama](https://ollama.com)) and stored as points with
 metadata in Qdrant. This creates a vector-based search and retrieval source (RAG)
 for the repository documentation. Questions can be answered via the `/search`
-endpoint, which retrieves relevant chunks and generates an answer with a chat LLM.
+endpoint, which retrieves relevant chunks and generates an answer with a chat LLM.  
+
+Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)  
+Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
 
 ## How it works
 
@@ -27,23 +30,69 @@ endpoint, which retrieves relevant chunks and generates an answer with a chat LL
 
 ```
 .
-├── index.js                 # Express server: wires modules together and starts listening
+├── index.js                 # App: wires Qdrant, LLM, Sync, Search and the Server together, starts it
 ├── server/
-│   ├── routes.js            # Route definitions: /health, /webhook, /search
+│   ├── index.js             # Express HTTP server: routes, error handling, graceful shutdown
+│   ├── router.js            # Route definitions: /health, /webhook, /search, serves the UI
+│   ├── frontendRouter.js    # Serves the Vite/React UI (Vite middleware in dev, static build in prod)
 │   ├── sync.js              # Core logic: push event → chunk → embed → Qdrant
 │   ├── gitea.js             # Gitea API client: fetch files, collect changed .md files
 │   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
 │   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
 │   ├── qdrant.js            # Qdrant client: upsert, search, delete points
 │   └── config.js            # Config loader (env + config.json)
+├── frontend/                # Vite + React (19) search UI for POST /search
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx         # React root, QueryClientProvider, Router
+│       ├── App.jsx          # Routes
+│       ├── api/             # fetch wrappers (client.js, search.js)
+│       ├── hooks/           # React-Query hooks (useSearch, ...)
+│       ├── components/      # SearchBar, SearchResults, Conversation
+│       └── style/           # hand-written CSS
 ├── config.json              # Default values (optional, created if needed)
 ├── compose.yml              # Docker Compose definition of the service
 ├── compose-local-dev.yml    # Docker Compose for local development with hot reload
-├── Dockerfile               # Node 22 (Alpine) base image
+├── Dockerfile               # Node 22 (Alpine) base image, builds the frontend
 ├── .env.default             # Template for the environment variables
 ├── .env                     # Environment variables (not committed)
 └── package.json
 ```
+
+## Frontend
+
+The service ships a small Vite + React (19) web UI in `frontend/` that answers
+questions against the synchronized documentation via `POST /search`. It uses
+`@tanstack/react-query` for data fetching, `react-router-dom` for routing and
+hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
+
+The Express server serves the UI transparently: in development it runs the Vite
+dev server as middleware (hot reload), in production it serves the built files
+from `frontend/dist` with a SPA fallback (`server/frontendRouter.js`).
+
+### Develop
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+In development the Vite dev server is embedded in the Express app, so no separate
+proxy is needed. The UI talks to the backend same-origin by default; override
+with `VITE_API_BASE` if required.
+
+### Build
+
+```bash
+cd frontend
+npm run build
+```
+
+The production build is created automatically by the Dockerfile before the server
+starts (see `compose.yml`).
 
 ## Prerequisites
 
