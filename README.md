@@ -186,8 +186,9 @@ Returns the service status: `{ "status": "ok" }`.
 
 ## MCP (Model Context Protocol)
 
-The service exposes an MCP server over SSE at `/mcp` (configurable via `MCP_PATH`).
+The service exposes an MCP server using the [Streamable HTTP transport](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp` (configurable via `MCP_PATH`).
 Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
+The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability with `listChanged`.
 
 ### Tools
 
@@ -199,21 +200,29 @@ Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:
 ### Example usage
 
 ```bash
-# Initialize MCP session
+# Initialize MCP session (Streamable HTTP transport)
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}'
+
+# List available tools
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 
 # Call the search tool
-curl -X POST http://localhost:3000/mcp/message \
+curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
 
 # Trigger a full repo sync
-curl -X POST http://localhost:3000/mcp/message \
+curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
 ```
+
+Responses are delivered as SSE events (`event: message`) with JSON-RPC data in the `data` field.
 
 ### Configuration
 
