@@ -7,11 +7,13 @@
     "start": "node index.js",
     "dev": "node --watch --watch-path=./server --watch-path=./index.js --watch-path=./config.json index.js"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "@qdrant/js-client-rest": "^1.18.0",
+    "dependencies": {
+    "@modelcontextprotocol/express": "^2.0.2",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "@qdrant/js-client-rest": "^1.19.0",
     "axios": "^1.20.0",
     "express": "^5.3.0",
-    "zod": "^3.25.0"
+    "zod": "^4.6.7"
   }
 }

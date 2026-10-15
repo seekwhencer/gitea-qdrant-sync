@@ -1,6 +1,7 @@
 
 import express from 'express';
 import { FrontendRouter } from './frontendRouter.js';
+import { McpRouter } from './mcpRouter.js';
 
 class Router {
     constructor(config, sync, search, httpServer, mcpService) {
@@ -112,66 +113,8 @@ class Router {
         });
 
         //
-        // MCP SSE endpoints
-        if (this.mcpService && this.config.mcpEnabled) {
-            const mcpPath = this.config.mcpPath || '/mcp';
-            const mcpMessagePath = mcpPath + '/message';
-
-            // Host validation middleware for MCP routes
-            const mcpMiddleware = [];
-            if (this.config.mcpAllowedHosts) {
-                const allowed = this.config.mcpAllowedHosts.split(',').map(h => h.trim());
-                mcpMiddleware.push((req, res, next) => {
-                    const host = req.get('Host') || '';
-                    const hostname = host.replace(/:\d+$/, '');
-                    if (!allowed.includes(hostname)) {
-                        return res.status(403).json({ error: 'Forbidden: host not allowed' });
-                    }
-                    next();
-                });
-            }
-
-            this.router.post(mcpPath, ...mcpMiddleware, async (req, res) => {
-                try {
-                    const baseUrl = `${req.protocol}://${req.get('host')}`;
-                    const messageEndpoint = `${baseUrl}${mcpMessagePath}`;
-
-                    const transport = await this.mcpService.createTransport(mcpMessagePath);
-
-                    res.writeHead(200, {
-                        'Content-Type': 'text/event-stream',
-                        'Cache-Control': 'no-cache',
-                        Connection: 'keep-alive',
-                        'X-Accel-Buffering': 'no'
-                    });
-
-                    // Pipe the transport's response to the SSE stream
-                    // The SSEServerTransport writes to res via its internal handle
-                    // We need to pass res to the transport's response handling
-                    transport.res = res;
-
-                    // Send the endpoint URL as the first SSE event
-                    res.write(`event: message\ndata: {"jsonrpc":"2.0","method":"serverInfo","params":{"endpoint":"${messageEndpoint}"}}\n\n`);
-
-                } catch (error) {
-                    console.error('[MCP] Error initializing SSE transport:', error);
-                    res.status(500).json({ error: 'MCP initialization failed', message: error.message });
-                }
-            });
-
-            this.router.post(mcpMessagePath, ...mcpMiddleware, async (req, res) => {
-                try {
-                    const transport = this.mcpService.getTransport();
-                    if (!transport) {
-                        return res.status(503).json({ error: 'No active MCP session. Call POST /mcp first.' });
-                    }
-                    await transport.handlePostMessage(req, res);
-                } catch (error) {
-                    console.error('[MCP] Error handling message:', error);
-                    res.status(500).json({ error: 'MCP message handling failed', message: error.message });
-                }
-            });
-        }
+        const mcpRouter = new McpRouter(this.config, this.mcpService);
+        this.router.use('/', mcpRouter);
 
     }
 }

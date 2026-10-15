@@ -6,6 +6,7 @@ services:
     command: ["npm", "run", "dev"]
     networks:
       - proxy_default
+      - gitea_qdrant_sync
     volumes:
       - ./:/app
       - /app/node_modules
@@ -15,6 +16,35 @@ services:
       - VIRTUAL_HOST=${VIRTUAL_HOST}
       - VIRTUAL_PORT=${SERVER_PORT}
 
+  gitea-qdrant-mcp-inspector:
+    image: ghcr.io/modelcontextprotocol/inspector:latest
+    container_name: gitea-qdrant-mcp-inspector
+    environment:
+      - NODE_ENV=production
+      - VIRTUAL_HOST=inspector.${VIRTUAL_HOST}
+      - VIRTUAL_PORT=6274
+      - DANGEROUSLY_BIND_ALL_INTERFACES=true
+      - ALLOWED_ORIGINS=http://proxy:80,http://172.18.0.0/16,http://gitea-sync:3000
+      - DANGEROUSLY_OMIT_AUTH=true
+      - MCP_INSPECTOR_SECRET_KEY=ein_sehr_langer_zufälliger_string_hier
+    restart: unless-stopped
+    networks:
+      - proxy_default
+      - gitea_qdrant_sync
+    volumes:
+      - mcp-inspector-data:/home/node/.mcp-inspector
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6274"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   proxy_default:
     external: true
+  gitea_qdrant_sync:
+    external: false
+    name: gitea_qdrant_sync
+
+volumes:
+  mcp-inspector-data:
