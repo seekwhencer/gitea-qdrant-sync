@@ -8,7 +8,7 @@ metadata in Qdrant. This creates a vector-based search and retrieval source (RAG
 for the repository documentation. Questions can be answered via the `/search`
 endpoint, which retrieves relevant chunks and generates an answer with a chat LLM.  
 The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context
-Protocol) server over SSE at `/mcp`, exposing `search` and `sync` tools for use
+Protocol) server over [Streamable HTTP](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp`, exposing `search` and `sync` tools for use
 by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
 
 Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)  
@@ -29,82 +29,27 @@ Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
    retrieved from Qdrant, and a chat LLM generates an answer based solely on that
    context (RAG).
 
-## Project structure
+## Installation and Start with Docker
 
-```
-.
-├── index.js                 # App: wires Qdrant, LLM, Sync, Search and the Server together, starts it
-├── server/
-│   ├── index.js             # Express HTTP server: routes, error handling, graceful shutdown
-│   ├── router.js            # Route definitions: /health, /webhook, /search, serves the UI
-│   ├── frontendRouter.js    # Serves the Vite/React UI (Vite middleware in dev, static build in prod)
-│   ├── sync.js              # Core logic: push event → chunk → embed → Qdrant
-│   ├── gitea.js             # Gitea API client: fetch files, collect changed .md files
-│   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
-│   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
-│   ├── qdrant.js            # Qdrant client: upsert, search, delete points
-│   ├── mcp.js               # MCP server: search and sync tools over SSE
-│   └── config.js            # Config loader (env + config.json)
-├── frontend/                # Vite + React (19) search UI for POST /search
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── package.json
-│   └── src/
-│       ├── main.jsx         # React root, QueryClientProvider, Router
-│       ├── App.jsx          # Routes
-│       ├── api/             # fetch wrappers (client.js, search.js)
-│       ├── hooks/           # React-Query hooks (useSearch, ...)
-│       ├── components/      # SearchBar, SearchResults, Conversation
-│       └── style/           # hand-written CSS
-├── config.json              # Default values (optional, created if needed)
-├── compose.yml              # Docker Compose definition of the service
-├── compose-local-dev.yml    # Docker Compose for local development with hot reload
-├── Dockerfile               # Node 22 (Alpine) base image, builds the frontend
-├── .env.default             # Template for the environment variables
-├── .env                     # Environment variables (not committed)
-└── package.json
-```
-
-## Frontend
-
-The service ships a small Vite + React (19) web UI in `frontend/` that answers
-questions against the synchronized documentation via `POST /search`. It uses
-`@tanstack/react-query` for data fetching, `react-router-dom` for routing and
-hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
-
-The Express server serves the UI transparently: in development it runs the Vite
-dev server as middleware (hot reload), in production it serves the built files
-from `frontend/dist` with a SPA fallback (`server/frontendRouter.js`).
-
-### Develop
+Copy `.env.default` to `.env` and fill in the required variables:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cp .env.default .env
 ```
 
-In development the Vite dev server is embedded in the Express app, so no separate
-proxy is needed. The UI talks to the backend same-origin by default; override
-with `VITE_API_BASE` if required.
-
-### Build
+Start the service with Docker Compose:
 
 ```bash
-cd frontend
-npm run build
+docker compose up --build
 ```
 
-The production build is created automatically by the Dockerfile before the server
-starts (see `compose.yml`).
+For local development with hot reload:
 
-## Prerequisites
+```bash
+docker compose -f compose-local-dev.yml up --build
+```
 
-- Node.js 22+
-- An accessible Qdrant (e.g. via `QDRANT_URL`)
-- An embedding LLM with an embedding endpoint (Ollama `/api/embed` or OpenAI-compatible `/embeddings`)
-- A chat LLM with a chat endpoint (Ollama `/api/chat` or OpenAI-compatible `/chat/completions`) for answering questions
-- A Gitea account with API token (for repository access)
+The service is exposed on the port defined by `SERVER_PORT` (default `3000`).
 
 ## Configuration
 
@@ -137,34 +82,119 @@ fallbacks for `EMBEDDINGS_URL`, `EMBEDDINGS_API` and `EMBEDDINGS_MODEL`.
 Without `config.json`, a sheet of default values is created at the
 `CONFIG_PATH` location on startup.
 
-## Installation
+## MCP (Model Context Protocol)
+
+The service exposes an MCP server using the [Streamable HTTP transport](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp` (configurable via `MCP_PATH`).
+Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
+The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability with `listChanged`.
+
+### Architecture
+
+Built with MCP TypeScript SDK v2 using a stateless per-request factory pattern:
+- `createMcpHandler()` creates a handler from a factory function
+- `toNodeHandler()` adapts the handler for Express
+- Each request gets a fresh `McpServer` instance via `McpService.createServer()`
+- No shared transport state — scales horizontally without session management
+
+### Tools
+
+| Tool     | Description                                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------- |
+| `ask`    | Answers a question using RAG (vector search in Qdrant + chat LLM). Takes a `question` string argument.  |
+| `search` | Searches the synchronized documentation with vector search in Qdrant. Returns raw chunks with scores and metadata. Takes a `question` string argument. |
+| `sync`   | Triggers a full sync of all Markdown files in a Gitea repository. Takes `repository` (`owner/repo`) and optional `ref` arguments. |
+
+### Example usage
+
+```bash
+# Initialize MCP session (Streamable HTTP transport)
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}'
+
+# List available tools
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+# Call the ask tool (RAG with LLM)
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ask","arguments":{"question":"How do I configure the webhook?"}}}'
+
+# Call the search tool (raw Qdrant chunks)
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
+
+# Trigger a full repo sync
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
+```
+
+Responses are delivered as SSE events (`event: message`) with JSON-RPC data in the `data` field.
+Session management is handled automatically via the `Mcp-Session-Id` header.
+
+### Configuration
+
+| Variable              | Description                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `MCP_ENABLED`         | Enable the MCP server (`true` by default)                                                                               |
+| `MCP_PATH`            | MCP endpoint path (default: `/mcp`)                                                                                     |
+| `MCP_ALLOWED_HOSTS`   | Comma-separated list of allowed hostnames for DNS rebinding protection (e.g. `localhost,127.0.0.1,[::1]`)               |
+
+When `MCP_ALLOWED_HOSTS` is set, requests with a `Host` header not in the list are rejected with `403`.
+
+## Development
+
+### Local start
 
 ```bash
 npm install
-```
-
-## Local start
-
-```bash
 SERVER_PORT=3000 QDRANT_URL=http://localhost:6333 QDRANT_PORT=6333 QDRANT_COLLECTION=research QDRANT_CHUNK_MAX_SIZE=768 \
 EMBEDDINGS_API=ollama EMBEDDINGS_URL=http://localhost:11434 EMBEDDINGS_MODEL=nomic-embed-text-v2-moe:latest \
 CHAT_API=ollama CHAT_URL=http://localhost:11434 CHAT_MODEL=loaded \
 GITEA_API_URL=https://gitea.example.com GITEA_TOKEN=your-token node index.js
 ```
 
-## Start with Docker Compose
+### Frontend
+
+The service ships a small Vite + React (19) web UI in `frontend/` that answers
+questions against the synchronized documentation via `POST /search`. It uses
+`@tanstack/react-query` for data fetching, `react-router-dom` for routing and
+hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
+
+The Express server serves the UI transparently: in development it runs the Vite
+dev server as middleware (hot reload), in production it serves the built files
+from `frontend/dist` with a SPA fallback (`server/frontendRouter.js`).
+
+#### Develop
 
 ```bash
-docker compose up --build
+cd frontend
+npm install
+npm run dev
 ```
 
-Copy `.env.default` to `.env` and fill in the variables above.
+In development the Vite dev server is embedded in the Express app, so no separate
+proxy is needed. The UI talks to the backend same-origin by default; override
+with `VITE_API_BASE` if required.
 
-For local development with hot reload:
+#### Build
 
 ```bash
-docker compose -f compose-local-dev.yml up --build
+cd frontend
+npm run build
 ```
+
+The production build is created automatically by the Dockerfile before the server
+starts (see `compose.yml`).
 
 ## Endpoints
 
@@ -183,56 +213,6 @@ generated.
 ### `GET /health`
 
 Returns the service status: `{ "status": "ok" }`.
-
-## MCP (Model Context Protocol)
-
-The service exposes an MCP server using the [Streamable HTTP transport](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp` (configurable via `MCP_PATH`).
-Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
-The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability with `listChanged`.
-
-### Tools
-
-| Tool     | Description                                                                                              |
-| -------- | -------------------------------------------------------------------------------------------------------- |
-| `search` | Answers a question using RAG (vector search in Qdrant + chat LLM). Takes a `question` string argument.  |
-| `sync`   | Triggers a full sync of all Markdown files in a Gitea repository. Takes `repository` (`owner/repo`) and optional `ref` arguments. |
-
-### Example usage
-
-```bash
-# Initialize MCP session (Streamable HTTP transport)
-curl -X POST http://localhost:3000/mcp \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}'
-
-# List available tools
-curl -X POST http://localhost:3000/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-
-# Call the search tool
-curl -X POST http://localhost:3000/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
-
-# Trigger a full repo sync
-curl -X POST http://localhost:3000/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
-```
-
-Responses are delivered as SSE events (`event: message`) with JSON-RPC data in the `data` field.
-
-### Configuration
-
-| Variable              | Description                                                                                                             |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `MCP_ENABLED`         | Enable the MCP server (`true` by default)                                                                               |
-| `MCP_PATH`            | MCP endpoint path (default: `/mcp`)                                                                                     |
-| `MCP_ALLOWED_HOSTS`   | Comma-separated list of allowed hostnames for DNS rebinding protection (e.g. `localhost,127.0.0.1,[::1]`)               |
-
-When `MCP_ALLOWED_HOSTS` is set, requests with a `Host` header not in the list are rejected with `403`.
 
 ## Set up Gitea webhook
 
@@ -255,3 +235,40 @@ default `nomic-embed-text`), the chat model (`chatModel`), the Qdrant collection
 chunking uses a recursive Markdown splitter in `server/sync.js`. The point ID
 generation in `server/qdrant.js` (`upsert`) uses a timestamp plus random id; adjust
 this if a deduplicated or content-stable synchronization is required.
+
+## Project structure
+
+```
+.
+├── index.js                 # App: wires Qdrant, LLM, Sync, Search and the Server together, starts it
+├── server/
+│   ├── index.js             # Express HTTP server: routes, error handling, graceful shutdown
+│   ├── router.js            # Route definitions: /health, /webhook, /search, serves the UI
+│   ├── frontendRouter.js    # Serves the Vite/React UI (Vite middleware in dev, static build in prod)
+│   ├── sync.js              # Core logic: push event → chunk → embed → Qdrant
+│   ├── gitea.js             # Gitea API client: fetch files, collect changed .md files
+│   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
+│   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
+│   ├── qdrant.js            # Qdrant client: upsert, search, delete points
+│   ├── mcp.js               # MCP service class: creates McpServer instances with ask/search/sync tools
+│   ├── mcpRouter.js         # MCP routes: createMcpHandler + toNodeHandler for Streamable HTTP
+│   └── config.js            # Config loader (env + config.json)
+├── frontend/                # Vite + React (19) search UI for POST /search
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx         # React root, QueryClientProvider, Router
+│       ├── App.jsx          # Routes
+│       ├── api/             # fetch wrappers (client.js, search.js)
+│       ├── hooks/           # React-Query hooks (useSearch, ...)
+│       ├── components/      # SearchBar, SearchResults, Conversation
+│       └── style/           # hand-written CSS
+├── config.json              # Default values (optional, created if needed)
+├── compose.yml              # Docker Compose definition of the service
+├── compose-local-dev.yml    # Docker Compose for local development with hot reload
+├── Dockerfile               # Node 22 (Alpine) base image, builds the frontend
+├── .env.default             # Template for the environment variables
+├── .env                     # Environment variables (not committed)
+└── package.json
+```

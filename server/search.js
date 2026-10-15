@@ -105,6 +105,38 @@ class Search {
         }
         yield { type: 'done' };
     }
+
+    async searchAndReturnChunks(question) {
+        try {
+            console.log(`[Search] Generating embedding for: "${question}"...`);
+            const queryVector = await this.llm.embed(question);
+
+            console.log('[Search] Searching in Qdrant...');
+            const results = await this.qdrant.search(queryVector, this.topK);
+
+            if (!results || results.length === 0) {
+                console.log('[Search] No matching documents found.');
+                return [];
+            }
+
+            const chunks = results.map(item => ({
+                text: item.payload?.text || '',
+                score: item.score || 0,
+                metadata: {
+                    repository: item.payload?.repository || '',
+                    path: item.payload?.path || '',
+                    ref: item.payload?.ref || '',
+                    commit: item.payload?.commit || ''
+                }
+            }));
+
+            console.log(`[Search] Found ${chunks.length} relevant documents.`);
+            return chunks;
+        } catch (err) {
+            console.error('[Error]', err);
+            return [];
+        }
+    }
 }
 
 export { Search };

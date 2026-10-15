@@ -25,7 +25,7 @@ class McpService {
         });
 
         this.mcpServer.registerTool(
-            'search',
+            'ask',
             {
                 description: 'Beantwortet eine Frage auf Basis der synchronisierten Gitea-Dokumentation (RAG). Nutzt Vektorsuche in Qdrant + LLM-Antwort.',
                 inputSchema: z.object({
@@ -41,6 +41,26 @@ class McpService {
                     };
                 }
                 return { content: [{ type: 'text', text: answer }] };
+            }
+        );
+
+        this.mcpServer.registerTool(
+            'search',
+            {
+                description: 'Durchsucht die synchronisierte Gitea-Dokumentation mit Vektorsuche in Qdrant. Gibt rohe Treffer ohne LLM zurück.',
+                inputSchema: z.object({
+                    question: z.string().describe('Die Suchanfrage')
+                })
+            },
+            async ({ question }) => {
+                const chunks = await this.search.searchAndReturnChunks(question);
+                if (chunks.length === 0) {
+                    return {
+                        content: [{ type: 'text', text: 'Keine Ergebnisse gefunden. Vielleicht ist das Thema noch nicht synchronisiert.' }],
+                        isError: false
+                    };
+                }
+                return { content: [{ type: 'text', text: JSON.stringify(chunks, null, 2) }] };
             }
         );
 
