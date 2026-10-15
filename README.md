@@ -7,6 +7,9 @@ help of an LLM (e.g. [Ollama](https://ollama.com)) and stored as points with
 metadata in Qdrant. This creates a vector-based search and retrieval source (RAG)
 for the repository documentation. Questions can be answered via the `/search`
 endpoint, which retrieves relevant chunks and generates an answer with a chat LLM.  
+The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context
+Protocol) server over SSE at `/mcp`, exposing `search` and `sync` tools for use
+by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
 
 Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)  
 Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
@@ -40,6 +43,7 @@ Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
 │   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
 │   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
 │   ├── qdrant.js            # Qdrant client: upsert, search, delete points
+│   ├── mcp.js               # MCP server: search and sync tools over SSE
 │   └── config.js            # Config loader (env + config.json)
 ├── frontend/                # Vite + React (19) search UI for POST /search
 │   ├── index.html
@@ -122,6 +126,9 @@ passed via `compose.yml` using a `.env` file:
 | `CHAT_MODEL`              | Chat model name                                                                                                        |
 | `GITEA_API_URL`           | Base URL of the Gitea API                                                                                             |
 | `GITEA_TOKEN`             | Personal Access Token for the Gitea API                                                                               |
+| `MCP_ENABLED`             | Enable the MCP server (`true` by default)                                                                             |
+| `MCP_PATH`                | MCP endpoint path (default: `/mcp`)                                                                                   |
+| `MCP_ALLOWED_HOSTS`       | Comma-separated list of allowed hostnames for DNS rebinding protection (e.g. `localhost,127.0.0.1,[::1]`)             |
 | `CONFIG_PATH`             | Path to `config.json` (default: `./config.json`)                                                                      |
 
 The older `LLM_URL`, `LLM_API` and `MODEL_NAME` variables are still supported as
@@ -176,6 +183,47 @@ generated.
 ### `GET /health`
 
 Returns the service status: `{ "status": "ok" }`.
+
+## MCP (Model Context Protocol)
+
+The service exposes an MCP server over SSE at `/mcp` (configurable via `MCP_PATH`).
+Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
+
+### Tools
+
+| Tool     | Description                                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------- |
+| `search` | Answers a question using RAG (vector search in Qdrant + chat LLM). Takes a `question` string argument.  |
+| `sync`   | Triggers a full sync of all Markdown files in a Gitea repository. Takes `repository` (`owner/repo`) and optional `ref` arguments. |
+
+### Example usage
+
+```bash
+# Initialize MCP session
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'
+
+# Call the search tool
+curl -X POST http://localhost:3000/mcp/message \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
+
+# Trigger a full repo sync
+curl -X POST http://localhost:3000/mcp/message \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
+```
+
+### Configuration
+
+| Variable              | Description                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `MCP_ENABLED`         | Enable the MCP server (`true` by default)                                                                               |
+| `MCP_PATH`            | MCP endpoint path (default: `/mcp`)                                                                                     |
+| `MCP_ALLOWED_HOSTS`   | Comma-separated list of allowed hostnames for DNS rebinding protection (e.g. `localhost,127.0.0.1,[::1]`)               |
+
+When `MCP_ALLOWED_HOSTS` is set, requests with a `Host` header not in the list are rejected with `403`.
 
 ## Set up Gitea webhook
 
