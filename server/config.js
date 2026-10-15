@@ -4,7 +4,11 @@ import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Loads and manages server configuration from environment variables and a config.json file.
+ */
 class Config {
+    /** @type {Record<string, string | number>} */
     static defaults = {
         serverPort: 3000,
         qdrantUrl: '',
@@ -47,10 +51,18 @@ class Config {
         this.mcpAllowedHosts = env.MCP_ALLOWED_HOSTS || this.defaults.mcpAllowedHosts;
     }
 
+    /**
+     * Resolves the path to the configuration file.
+     * @returns {string}
+     */
     resolvePath() {
         return this.env.CONFIG_PATH || join(__dirname, '..', 'config.json');
     }
 
+    /**
+     * Creates a defaults object from environment variables or static default values.
+     * @returns {Record<string, string | number>}
+     */
     buildDefaults() {
         return {
             serverPort: parseInt(this.env.SERVER_PORT, 10) || Config.defaults.serverPort,
@@ -72,6 +84,10 @@ class Config {
         };
     }
 
+    /**
+     * Loads config.json or creates it if it does not exist.
+     * @returns {Record<string, string | number>}
+     */
     loadOrGenerateDefaults() {
         this.configPath = this.resolvePath();
 

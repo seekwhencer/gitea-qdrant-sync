@@ -3,7 +3,16 @@ import { createServer as createHttpServer } from 'node:http';
 import { Router } from './router.js';
 import { McpService } from './mcp.js';
 
+/**
+ * Main server class for the Gitea-Qdrant-Sync service.
+ * Starts the HTTP server, initializes MCP, and sets up error handlers.
+ */
 export class Server {
+    /**
+     * @param {object} config - Configuration object
+     * @param {GiteaQdrantSync} sync - Sync service
+     * @param {Search} search - Search service
+     */
     constructor(config, sync, search) {
         this.config = config;
         this.sync = sync;
@@ -32,6 +41,11 @@ export class Server {
         });
     }
 
+    /**
+     * Starts the HTTP server and initializes the MCP service.
+     * Registers signal handlers for clean shutdown.
+     * @returns {Promise<void>}
+     */
     async start() {
         try {
             await this.mcpService.init();

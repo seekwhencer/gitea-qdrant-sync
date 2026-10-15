@@ -1,6 +1,18 @@
 import axios from 'axios';
 
+/**
+ * LLM service for generating embeddings and chat completions via Ollama or OpenAI-compatible APIs.
+ */
 class Llm {
+    /**
+     * @param {object} [params] - Configuration parameters
+     * @param {string} [params.embeddingsApi='ollama'] - Embedding API backend
+     * @param {string} [params.embeddingsUrl=''] - Embedding server base URL
+     * @param {string} [params.embeddingsModel=''] - Embedding model name
+     * @param {string} [params.chatApi='ollama'] - Chat API backend
+     * @param {string} [params.chatUrl=''] - Chat server base URL
+     * @param {string} [params.chatModel=''] - Chat model name
+     */
     constructor({
         embeddingsApi = 'ollama',
         embeddingsUrl = '',
@@ -21,10 +33,20 @@ class Llm {
         };
     }
 
+    /**
+     * Normalizes a URL by stripping trailing slashes.
+     * @param {string} url - The URL to normalize
+     * @returns {string}
+     */
     normalizeUrl(url) {
         return String(url || '').replace(/\/+$/, '');
     }
 
+    /**
+     * Generates an embedding vector for the given text.
+     * @param {string} text - The text to embed
+     * @returns {Promise<number[]>} The embedding vector
+     */
     async embed(text) {
         const cfg = this.embeddingsConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
@@ -51,6 +73,12 @@ class Llm {
         throw new Error('Unrecognized Ollama embedding response shape');
     }
 
+    /**
+     * Sends a chat request and returns the full response text.
+     * @param {Array<object>} messages - Array of chat messages
+     * @param {object} [options={}] - Additional options (e.g. model, temperature)
+     * @returns {Promise<string>} The assistant's response text
+     */
     async chat(messages, options = {}) {
         const cfg = this.chatConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
@@ -73,6 +101,12 @@ class Llm {
         return res.data.message.content;
     }
 
+    /**
+     * Parses an SSE (Server-Sent Events) stream into yielded JSON objects.
+     * @param {ReadableStreamDefaultReader} body - The response body reader
+     * @yields {object} Parsed JSON chunks
+     * @private
+     */
     async *_readSSE(body) {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -102,6 +136,12 @@ class Llm {
         }
     }
 
+    /**
+     * Parses an NDJSON stream into yielded JSON objects.
+     * @param {ReadableStreamDefaultReader} body - The response body reader
+     * @yields {object} Parsed JSON chunks
+     * @private
+     */
     async *_readNDJSON(body) {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -128,6 +168,12 @@ class Llm {
         }
     }
 
+    /**
+     * Streams chat completions and yields raw chunk objects.
+     * @param {Array<object>} messages - Array of chat messages
+     * @param {object} [options={}] - Additional options
+     * @yields {object} Raw streaming chunks
+     */
     async *streamChunks(messages, options = {}) {
         const cfg = this.chatConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
@@ -161,6 +207,12 @@ class Llm {
         }
     }
 
+    /**
+     * Streams chat completions and yields structured { phase, token } objects.
+     * @param {Array<object>} messages - Array of chat messages
+     * @param {object} [options={}] - Additional options
+     * @yields {object} Objects with phase ('thinking' | 'answer') and token
+     */
     async *streamChat(messages, options = {}) {
         for await (const chunk of this.streamChunks(messages, options)) {
             if (this.chatConfig.api === 'openapi') {

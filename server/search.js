@@ -1,7 +1,25 @@
 import { Qdrant } from './qdrant.js';
 import { Llm } from './llm.js';
 
+/**
+ * Performs semantic search on vectors stored in Qdrant and generates LLM-based answers (RAG).
+ */
 class Search {
+    /**
+     * @param {object} params - Configuration parameters
+     * @param {Qdrant} [params.qdrant] - Qdrant client instance
+     * @param {Llm} [params.llm] - LLM service instance
+     * @param {string} [params.qdrantUrl] - Qdrant server URL
+     * @param {number} [params.qdrantPort] - Qdrant port
+     * @param {string} [params.qdrantCollection] - Qdrant collection name
+     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openapi)
+     * @param {string} [params.embeddingsUrl] - Embedding server URL
+     * @param {string} [params.embeddingsModel] - Embedding model name
+     * @param {string} [params.chatApi] - Chat API (ollama/openapi)
+     * @param {string} [params.chatUrl] - Chat server URL
+     * @param {string} [params.chatModel] - Chat model name
+     * @param {number} [params.topK=20] - Number of returned results
+     */
     constructor({
         qdrant,
         llm,
@@ -25,6 +43,11 @@ class Search {
         });
     }
 
+    /**
+     * Generates an embedding vector for the question, searches in Qdrant, and has the LLM generate an answer.
+     * @param {string} question - The search query
+     * @returns {Promise<string|undefined>} The generated answer or undefined
+     */
     async searchAndAnswer(question) {
         try {
             console.log(`[Search] Generating embedding for: "${question}"...`);
@@ -71,6 +94,13 @@ class Search {
         }
     }
 
+    /**
+     * Streaming version of searchAndAnswer: yields status, thinking, and answer events.
+     * @param {string} question - The search query
+     * @param {object} [options] - Optional parameters
+     * @param {AbortSignal} [options.signal] - AbortSignal to cancel the stream
+     * @yields {object} Event objects with type ('status' | 'thinking' | 'answer' | 'empty' | 'done')
+     */
     async *streamAndAnswer(question, { signal } = {}) {
         yield { type: 'status', phase: 'embedding', message: 'Embedding wird erzeugt…' };
         const queryVector = await this.llm.embed(question);
@@ -106,6 +136,11 @@ class Search {
         yield { type: 'done' };
     }
 
+    /**
+     * Performs semantic search in Qdrant and returns raw results with metadata.
+     * @param {string} question - The search query
+     * @returns {Promise<Array<{text: string, score: number, metadata: object}>>} Array of results
+     */
     async searchAndReturnChunks(question) {
         try {
             console.log(`[Search] Generating embedding for: "${question}"...`);

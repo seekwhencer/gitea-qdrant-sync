@@ -1,23 +1,43 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 
+/**
+ * MCP service that registers tools for asking questions, searching, and syncing.
+ */
 class McpService {
+    /**
+     * @param {object} params - Service dependencies
+     * @param {Search} params.search - Search service
+     * @param {GiteaQdrantSync} params.sync - Sync service
+     */
     constructor({ search, sync }) {
         this.search = search;
         this.sync = sync;
         this.mcpServer = null;
     }
 
+    /**
+     * Initializes the MCP service.
+     * @returns {Promise<void>}
+     */
     init() {
         console.log('[MCP] Service initialized (v2 class pattern)');
         return Promise.resolve();
     }
 
+    /**
+     * Shuts down the MCP service.
+     * @returns {Promise<void>}
+     */
     shutdown() {
         this.mcpServer = null;
         return Promise.resolve();
     }
 
+    /**
+     * Creates and configures an MCP server with the ask, search, and sync tools.
+     * @returns {McpServer}
+     */
     createServer() {
         this.mcpServer = new McpServer({
             name: 'gitea-qdrant-sync',

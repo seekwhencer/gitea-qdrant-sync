@@ -3,7 +3,18 @@ import express from 'express';
 import { FrontendRouter } from './frontendRouter.js';
 import { McpRouter } from './mcpRouter.js';
 
+/**
+ * Main router class that aggregates all server routes.
+ * Integrates frontend, webhook, search, and MCP routes.
+ */
 class Router {
+    /**
+     * @param {Config} config - Configuration object
+     * @param {GiteaQdrantSync} sync - Sync service
+     * @param {Search} search - Search service
+     * @param {import('node:http').Server} httpServer - HTTP server instance
+     * @param {McpService} mcpService - MCP service
+     */
     constructor(config, sync, search, httpServer, mcpService) {
         this.sync = sync;
         this.search = search;
@@ -19,6 +30,9 @@ class Router {
         return this.router;
     }
 
+    /**
+     * Defines all routes: frontend, health, webhook, search, and MCP.
+     */
     define() {
 
         //

@@ -7,7 +7,17 @@ import { createRequire } from 'module';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Frontend router that serves static files and the Vite dev server.
+ * In development mode, a Vite server is integrated as middleware.
+ */
 class FrontendRouter {
+    /**
+     * @param {Config} config - Configuration object
+     * @param {GiteaQdrantSync} sync - Sync service
+     * @param {Search} search - Search service
+     * @param {import('node:http').Server} httpServer - HTTP server instance
+     */
     constructor(config, sync, search, httpServer) {
         this.config = config;
         this.sync = sync;
@@ -26,6 +36,9 @@ class FrontendRouter {
         return this.router;
     }
 
+    /**
+     * Sets up frontend routes: Vite dev server in development mode, static files in production mode.
+     */
     async define() {
         
         if (process.env.NODE_ENV === 'development') {
@@ -55,6 +68,10 @@ class FrontendRouter {
         
     }
 
+    /**
+     * Starts a Vite dev server in middleware mode.
+     * @returns {Promise<import('vite').ViteDevServer | null>}
+     */
     async getViteServer() {
         try {
             const uiRoot = path.resolve(__dirname, '..', this.uiDir);

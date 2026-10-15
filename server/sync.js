@@ -2,7 +2,28 @@ import { Qdrant } from './qdrant.js';
 import { Llm } from './llm.js';
 import { Gitea } from './gitea.js';
 
+/**
+ * Orchestrates synchronization of Gitea repository files to Qdrant.
+ * Reads Markdown files, creates embeddings, and stores vectors in Qdrant.
+ */
 class GiteaQdrantSync {
+    /**
+     * @param {object} params - Configuration parameters
+     * @param {Qdrant} [params.qdrant] - Qdrant client instance
+     * @param {Llm} [params.llm] - LLM service instance
+     * @param {string} [params.qdrantUrl] - Qdrant server URL
+     * @param {number} [params.qdrantPort] - Qdrant port
+     * @param {string} [params.qdrantCollection] - Qdrant collection name
+     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openapi)
+     * @param {string} [params.embeddingsUrl] - Embedding server URL
+     * @param {string} [params.embeddingsModel] - Embedding model name
+     * @param {string} [params.chatApi] - Chat API (ollama/openapi)
+     * @param {string} [params.chatUrl] - Chat server URL
+     * @param {string} [params.chatModel] - Chat model name
+     * @param {string} [params.giteaApiUrl] - Gitea API URL
+     * @param {string} [params.giteaToken] - Gitea API token
+     * @param {number} [params.qdrantChunkMaxSize] - Maximum chunk size
+     */
     constructor({
         qdrant,
         llm,
@@ -28,6 +49,11 @@ class GiteaQdrantSync {
         });
     }
 
+    /**
+     * Processes a Gitea push webhook: extracts changed Markdown files and synchronizes them.
+     * @param {object} payload - Webhook payload
+     * @returns {Promise<void>}
+     */
     async handlePushEvent(payload) {
         const repository = payload.repository;
         console.log(`[Webhook] Push received for repository: ${repository.html_url}`);
@@ -44,6 +70,13 @@ class GiteaQdrantSync {
         }
     }
 
+    /**
+     * Fully synchronizes all Markdown files of a repository with Qdrant.
+     * @param {string} owner - Repository owner
+     * @param {string} name - Repository name
+     * @param {string} [ref='main'] - Git ref/branch/commit
+     * @returns {Promise<void>}
+     */
     async syncRepository(owner, name, ref = 'main') {
         console.log(`[Sync] Starting full sync for ${owner}/${name} (ref: ${ref})`);
 
@@ -66,6 +99,12 @@ class GiteaQdrantSync {
         console.log(`[Sync] Repository ${owner}/${name} synced with ${markdownFiles.length} files.`);
     }
 
+    /**
+     * Synchronizes a single file: loads content, splits into chunks, creates embeddings, and stores in Qdrant.
+     * @param {object} payload - Webhook payload with repository information
+     * @param {string} filePath - Path of the file to synchronize
+     * @returns {Promise<void>}
+     */
     async syncFile(payload, filePath) {
         console.log(`Processing file: ${filePath}`);
 
@@ -81,11 +120,11 @@ class GiteaQdrantSync {
     }
 
     /**
-     * Splittet Markdown-Text rekursiv anhand von hierarchischen Trennzeichen.
-     * @param {string} text - Der zu splittende Text.
-     * @param {number} maxSize - Maximale Zeichenanzahl pro Chunk.
-     * @param {string[]} [separators] - Optionale Liste von Trennzeichen.
-     * @returns {string[]} Ein Array von Text-Chunks.
+     * Splits Markdown text recursively based on hierarchical separators.
+     * @param {string} text - The text to split.
+     * @param {number} maxSize - Maximum number of characters per chunk.
+     * @param {string[]} [separators] - Optional list of separators.
+     * @returns {string[]} An array of text chunks.
      */
     recursiveMarkdownSplitter(text, maxSize, separators) {
         const defaultSeparators = ["\n# ", "\n## ", "\n### ", "\n\n", "\n", " "];
@@ -151,6 +190,11 @@ class GiteaQdrantSync {
         return chunks;
     }
 
+    /**
+     * Splits raw file content into chunks of maximum size.
+     * @param {string} content - The file content to split
+     * @returns {string[]} Array of text chunks
+     */
     chunkContent(content) {
         return this.recursiveMarkdownSplitter(content, this.qdrantChunkMaxSize);
     }
