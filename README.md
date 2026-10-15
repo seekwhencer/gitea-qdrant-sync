@@ -84,7 +84,7 @@ Without `config.json`, a sheet of default values is created at the
 
 ## MCP (Model Context Protocol)
 
-The service exposes an MCP server using the [Streamable HTTP transport](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp` (configurable via `MCP_PATH`).
+The service exposes an MCP server at `/mcp` (configurable via `MCP_PATH`).
 Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
 The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability with `listChanged`.
 
@@ -107,39 +107,33 @@ Built with MCP TypeScript SDK v2 using a stateless per-request factory pattern:
 ### Example usage
 
 ```bash
-# Initialize MCP session (Streamable HTTP transport)
+# Initialize MCP session (stateless HTTP)
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}'
 
 # List available tools
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 
 # Call the ask tool (RAG with LLM)
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ask","arguments":{"question":"How do I configure the webhook?"}}}'
 
 # Call the search tool (raw Qdrant chunks)
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search","arguments":{"question":"How do I configure the webhook?"}}}'
 
 # Trigger a full repo sync
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
 ```
 
-Responses are delivered as SSE events (`event: message`) with JSON-RPC data in the `data` field.
-Session management is handled automatically via the `Mcp-Session-Id` header.
+Each request is stateless — no session management required.
 
 ### Configuration
 
@@ -197,6 +191,10 @@ The production build is created automatically by the Dockerfile before the serve
 starts (see `compose.yml`).
 
 ## Endpoints
+
+### `GET /`
+
+The Web UI
 
 ### `POST /webhook`
 
