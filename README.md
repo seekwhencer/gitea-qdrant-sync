@@ -10,9 +10,18 @@ endpoint, which retrieves relevant chunks and generates an answer with a chat LL
 The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context
 Protocol) server over [Streamable HTTP](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp`, exposing `search` and `sync` tools for use
 by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
+Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)
 
-Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)  
 Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
+
+## Prerequisites
+
+- **Docker** (recommended) or Node.js 20+ for local development.
+- A running **[Qdrant](https://qdrant.tech)** instance reachable at `QDRANT_URL`:`QDRANT_PORT`.
+- An LLM host supporting the embedding and chat APIs you configure (`EMBEDDINGS_API`, `CHAT_API`), e.g. [Ollama](https://ollama.com) or a llama.cpp-compatible OpenAI endpoint.
+- A Gitea instance with an API token for webhook-triggered syncs.
+
+The service itself does not host Qdrant, the embedding model, or the chat LLM — it only orchestrates fetching from Gitea and reading/writing to those external services. Provide their URLs via environment variables (see Configuration).
 
 ## How it works
 
@@ -51,10 +60,13 @@ docker compose -f compose-local-dev.yml up --build
 
 The service is exposed on the port defined by `SERVER_PORT` (default `3000`).
 
+Qdrant and the embedding/chat LLM host must be provisioned separately — this
+service only fetches from Gitea and reads/writes to those external services.
+Provide their URLs via environment variables.
+
 ## Configuration
 
-The environment variables take precedence over `config.json`. In Docker they are
-passed via `compose.yml` using a `.env` file:
+The environment variables take precedence over `config.json`. In Docker they are passed via `compose.yml` using a `.env` file:
 
 | Variable                  | Description                                                                                                             |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
