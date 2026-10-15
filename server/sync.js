@@ -44,6 +44,28 @@ class GiteaQdrantSync {
         }
     }
 
+    async syncRepository(owner, name, ref = 'main') {
+        console.log(`[Sync] Starting full sync for ${owner}/${name} (ref: ${ref})`);
+
+        const markdownFiles = await this.gitea.listFiles(owner, name, ref);
+        console.log(`[Sync] Found ${markdownFiles.length} Markdown files in ${owner}/${name}`);
+
+        const payload = {
+            repository: { html_url: `https://${this.gitea.url.replace(/\/api\/v1$/, '')}/${owner}/${name}` },
+            after: ref
+        };
+
+        for (const filePath of markdownFiles) {
+            try {
+                await this.syncFile(payload, filePath);
+            } catch (error) {
+                console.error(`[Sync] Error processing file ${filePath}:`, error);
+            }
+        }
+
+        console.log(`[Sync] Repository ${owner}/${name} synced with ${markdownFiles.length} files.`);
+    }
+
     async syncFile(payload, filePath) {
         console.log(`Processing file: ${filePath}`);
 

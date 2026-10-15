@@ -18,5 +18,8 @@ services:
       - CHAT_MODEL=${CHAT_MODEL}
       - GITEA_API_URL=${GITEA_API_URL}
       - GITEA_TOKEN=${GITEA_TOKEN}
+      - MCP_ENABLED=${MCP_ENABLED}
+      - MCP_PATH=${MCP_PATH}
+      - MCP_ALLOWED_HOSTS=${MCP_ALLOWED_HOSTS}
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"

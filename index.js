@@ -42,7 +42,7 @@ class App {
         this.server = new Server(this.config, this.sync, this.search);
     }
 
-    run() {
+    async run() {
         return this.server.start();
     }
 

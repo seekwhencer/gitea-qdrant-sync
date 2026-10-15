@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer as createHttpServer } from 'node:http';
 import { Router } from './router.js';
+import { McpService } from './mcp.js';
 
 export class Server {
     constructor(config, sync, search) {
@@ -12,8 +13,11 @@ export class Server {
         this.app = express();
         this.httpServer = createHttpServer(this.app);
 
+        // MCP service
+        this.mcpService = new McpService({ search: this.search, sync: this.sync });
+
         // append the routes
-        this.router = new Router(this.config, this.sync, this.search, this.httpServer);
+        this.router = new Router(this.config, this.sync, this.search, this.httpServer, this.mcpService);
         this.app.use(this.router);
 
         // 404
@@ -28,13 +32,25 @@ export class Server {
         });
     }
 
-    start() {
+    async start() {
+        try {
+            await this.mcpService.init();
+            console.log('[MCP] Server initialized');
+        } catch (error) {
+            console.error('[MCP] Initialization failed, continuing without MCP:', error.message);
+        }
+
         this.httpServer.listen(this.config.serverPort, () => {
             console.log(`Gitea-Qdrant-Sync running on port ${this.config.serverPort}`);
         });
 
-        const shutdown = () => {
+        const shutdown = async () => {
             console.log('Shutting down...');
+            try {
+                await this.mcpService.shutdown();
+            } catch (e) {
+                console.error('[MCP] Shutdown error:', e.message);
+            }
             this.httpServer.close(() => process.exit(0));
         };
         process.on('SIGTERM', shutdown);

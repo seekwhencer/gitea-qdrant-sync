@@ -18,7 +18,10 @@ class Config {
         chatUrl: '',
         chatModel: '',
         giteaApiUrl: '',
-        giteaToken: ''
+        giteaToken: '',
+        mcpEnabled: true,
+        mcpPath: '/mcp',
+        mcpAllowedHosts: ''
     };
 
     constructor(env = process.env) {
@@ -39,6 +42,9 @@ class Config {
         this.giteaToken = env.GITEA_TOKEN || this.defaults.giteaToken;
         this.qdrantCollection = env.QDRANT_COLLECTION || this.defaults.qdrantCollection;
         this.qdrantChunkMaxSize = parseInt(env.QDRANT_CHUNK_MAX_SIZE, 10) || this.defaults.qdrantChunkMaxSize;
+        this.mcpEnabled = env.MCP_ENABLED !== 'false' && this.defaults.mcpEnabled;
+        this.mcpPath = env.MCP_PATH || this.defaults.mcpPath;
+        this.mcpAllowedHosts = env.MCP_ALLOWED_HOSTS || this.defaults.mcpAllowedHosts;
     }
 
     resolvePath() {
@@ -59,7 +65,10 @@ class Config {
             giteaApiUrl: this.env.GITEA_API_URL || Config.defaults.giteaApiUrl,
             giteaToken: this.env.GITEA_TOKEN || Config.defaults.giteaToken,
             qdrantCollection: this.env.QDRANT_COLLECTION || Config.defaults.qdrantCollection,
-            qdrantChunkMaxSize: parseInt(this.env.QDRANT_CHUNK_MAX_SIZE, 10) || Config.defaults.qdrantChunkMaxSize
+            qdrantChunkMaxSize: parseInt(this.env.QDRANT_CHUNK_MAX_SIZE, 10) || Config.defaults.qdrantChunkMaxSize,
+            mcpEnabled: this.env.MCP_ENABLED !== 'false' || Config.defaults.mcpEnabled,
+            mcpPath: this.env.MCP_PATH || Config.defaults.mcpPath,
+            mcpAllowedHosts: this.env.MCP_ALLOWED_HOSTS || Config.defaults.mcpAllowedHosts
         };
     }
 

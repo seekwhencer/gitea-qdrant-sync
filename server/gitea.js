@@ -36,6 +36,35 @@ class Gitea {
         });
         return changedFiles;
     }
+
+    async listFiles(owner, name, ref = 'main') {
+        const markdownFiles = [];
+        await this._walkTree(owner, name, '', ref, markdownFiles);
+        return markdownFiles;
+    }
+
+    async _walkTree(owner, name, path, ref, results) {
+        const encodedPath = encodeURIComponent(path);
+        const url = `${this.url}/api/v1/repos/${owner}/${name}/contents${encodedPath ? `/${encodedPath}` : ''}?ref=${encodeURIComponent(ref)}`;
+        try {
+            const res = await axios.get(url, {
+                headers: { Authorization: `token ${this.token}` }
+            });
+            const items = Array.isArray(res.data) ? res.data : [];
+            for (const item of items) {
+                if (item.type === 'tree') {
+                    await this._walkTree(owner, name, `${path}${item.name}/`, ref, results);
+                } else if (item.type === 'file' && /\.md$/i.test(item.name)) {
+                    results.push(`${path}${item.name}`);
+                }
+            }
+        } catch (error) {
+            const status = error.response?.status;
+            if (status === 404) return;
+            console.error(`[Gitea] Failed to list tree ${path} in ${owner}/${name}: HTTP ${status}`);
+            throw error;
+        }
+    }
 }
 
 export { Gitea };
