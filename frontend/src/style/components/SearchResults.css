@@ -125,6 +125,28 @@
   width: 100%;
 }
 
+.answer__cursor {
+  display: inline-block;
+  width: 0.6ch;
+  margin-left: 1px;
+  color: var(--color-primary);
+  font-weight: 700;
+  animation: answer-cursor-blink 1s steps(1, end) infinite;
+}
+
+@keyframes answer-cursor-blink {
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .markdown {
   display: flex;
   flex-direction: column;
@@ -183,17 +205,20 @@
 
 .markdown ul,
 .markdown ol {
-  margin: 0 0 var(--space-3);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-2) 0;
+  line-height: 1;
   padding-left: var(--space-6);
+  white-space: initial;
 }
 
 .markdown li {
   margin-bottom: var(--space-1);
-  line-height: 1.6;
+  line-height: 1;
+  padding: 0; 
 }
 
 .markdown li>p {
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .markdown blockquote {
@@ -229,7 +254,7 @@
   background: var(--color-surface-alt);
   padding: 0.15em 0.6em;
   border-radius: var(--radius-sm);
-  font-weight: 800; 
+  font-weight: 800;
 }
 
 .markdown pre {
@@ -298,7 +323,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin: var(--space-3) 0 0;
+  margin: 0 0 var(--space-3) 0;
   padding: var(--space-2) var(--space-3);
   font-size: 0.82rem;
   font-weight: 600;

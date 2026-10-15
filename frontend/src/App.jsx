@@ -1,18 +1,21 @@
 import SearchBar from './components/SearchBar';
-import SearchResults from './components/SearchResults';
+import StreamingResults from './components/StreamingResults';
 import Conversation from './components/Conversation';
-import { useSearch } from './hooks/useSearch';
+import { useSearchStream } from './hooks/useSearch';
 import { useConversation } from './hooks/useConversation';
 
 export default function App() {
-  const { mutate, isPending, isError, error, data } = useSearch();
+  const { thinking, answer, statusMessage, pending, error, done, run } = useSearchStream();
   const { items, add, clear } = useConversation();
 
-  const handleSubmit = (question) => {
-    mutate(question, {
-      onSuccess: (result) =>
-        add({ question, answer: result.answer, error: null, ts: Date.now() }),
-      onError: (err) => add({ question, answer: null, error: err, ts: Date.now() }),
+  const handleSubmit = async (question) => {
+    const result = await run(question);
+    add({
+      question,
+      answer: result.answer || null,
+      thinking: result.thinking || null,
+      error: result.error ? result.error.message : null,
+      ts: Date.now(),
     });
   };
 
@@ -21,8 +24,15 @@ export default function App() {
       <h1>Gitea Markdown Search RAG</h1>
       <div className="app__layout">
         <section className="app__primary">
-          <SearchBar onSubmit={handleSubmit} pending={isPending} />
-          <SearchResults answer={data?.answer} error={error} pending={isPending} />
+          <SearchBar onSubmit={handleSubmit} pending={pending} />
+          <StreamingResults
+            thinking={thinking}
+            answer={answer}
+            statusMessage={statusMessage}
+            pending={pending}
+            error={error}
+            done={done}
+          />
         </section>
         <section className="app__secondary">
           <div className="app__history-header">

@@ -1,1 +1,1 @@
-export { search, getHealth } from './client';
+export { search, getHealth, searchStream } from './client';

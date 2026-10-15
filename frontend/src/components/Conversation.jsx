@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AnswerText from './AnswerText';
+import ThinkBlock from './ThinkBlock';
 
 const ERROR_MESSAGES = {
   400: 'Bitte gib eine Frage ein.',
@@ -69,6 +70,7 @@ function HistoryItem({ item, onSelect }) {
           <p className="conversation__error">{errorMessage(item.error)}</p>
         ) : (
           <div className="conversation__answer">
+            {item.thinking && <ThinkBlock content={item.thinking} />}
             <AnswerText text={item.answer} />
           </div>
         )

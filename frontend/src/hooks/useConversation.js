@@ -28,13 +28,14 @@ function loadInitial() {
 export function useConversation() {
   const [items, setItems] = useState(loadInitial);
 
-  const add = useCallback(({ question, answer, error, ts }) => {
+  const add = useCallback(({ question, answer, thinking, error, ts }) => {
     setItems((prev) => {
       const next = [
         {
           id: makeId(),
           question,
           answer: answer ?? null,
+          thinking: thinking ?? null,
           error: error ?? null,
           ts: ts ?? Date.now(),
         },
