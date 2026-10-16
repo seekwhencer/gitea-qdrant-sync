@@ -14,6 +14,10 @@
 
 .app__primary {
   min-width: 0;
+  position: sticky;
+  top: var(--space-5);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--space-8));
 }
 
 .app__secondary {
