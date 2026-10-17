@@ -46,7 +46,9 @@ class Qdrant {
         ref = '',
         commit = ''
     } = {}) {
-        const id = createHash('sha256').update(`${chunkText}\0${repository}`).digest('hex');
+        const hex = createHash('sha256').update(`${chunkText}\0${repository}`).digest('hex');
+        // Qdrant requires point IDs to be unsigned integers or UUIDs; a raw hex hash is neither.
+        const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 
         // path ist Alias für source (Kompatibilität mit searchAndReturnChunks)
         const payloadPath = (path ?? source) || '';

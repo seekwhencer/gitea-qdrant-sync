@@ -35,7 +35,8 @@ describe('Qdrant', () => {
         expect(collection).toBe('research');
 
         const point = payload.points[0];
-        const expectedId = createHash('sha256').update('hello\0repo').digest('hex');
+        const hex = createHash('sha256').update('hello\0repo').digest('hex');
+        const expectedId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
         expect(point.id).toBe(expectedId);
         expect(point.vector).toEqual([0.1, 0.2]);
         expect(point.payload).toEqual({

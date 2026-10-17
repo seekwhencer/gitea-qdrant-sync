@@ -56,6 +56,17 @@ class Router {
         });
 
         //
+        this.router.post('/sync-all', async (req, res) => {
+            try {
+                const result = await this.sync.syncAllRepositories();
+                res.status(202).json(result);
+            } catch (error) {
+                console.error('Error triggering sync-all:', error);
+                res.status(500).json({ error: 'Internal Server Error', message: error.message });
+            }
+        });
+
+        //
         this.router.post('/search', async (req, res) => {
             const question = req.body.question;
             if (!question) {

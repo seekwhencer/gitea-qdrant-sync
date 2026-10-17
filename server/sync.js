@@ -126,6 +126,67 @@ class GiteaQdrantSync {
     }
 
     /**
+     * Promise-basierte Sperre für Re-Syncs. Verhindert parallele Re-Syncs;
+     * ein neuer Request wartet auf _syncLock bis der laufende Re-Sync fertig ist.
+     */
+    _syncLock = Promise.resolve();
+    _syncInProgress = false;
+
+    /**
+     * Synchronisiert alle Markdown-Dateien aller Gitea-Repositories in Qdrant.
+     * Läuft im Hintergrund; gibt sofort zurück. Ein erneuter Aufruf wartet auf
+     * _syncLock bis der aktuelle Re-Sync beendet ist, dann übernimmt er die Sperre.
+     * @returns {{status: string, message: string}}
+     */
+    async syncAllRepositories() {
+        // Warten auf eventuellen laufenden Re-Sync (erworbt implizit die Sperre)
+        await this._syncLock;
+
+        // Sperre erwerben: _syncLock durch neues Promise ersetzen, das erst am Ende aufgelöst wird
+        let resolveLock;
+        this._syncLock = new Promise((resolve) => { resolveLock = resolve; });
+        this._syncInProgress = true;
+
+        // Re-Sync im Hintergrund starten (fire-and-forget)
+        void (async () => {
+            try {
+                await this._performSyncAll();
+            } catch (error) {
+                console.error('[Sync-All] Fehler während Re-Sync:', error);
+            } finally {
+                this._syncInProgress = false;
+                if (resolveLock) resolveLock();
+            }
+        })();
+
+        return {
+            status: 'started',
+            message: 'Re-Sync aller Repositories gestartet im Hintergrund.'
+        };
+    }
+
+    /**
+     * Interne Implementierung des Re-Syncs aller Repositories.
+     * Listet alle Repos via Gitea API und synchronisiert jedes Repository.
+     * @returns {Promise<void>}
+     */
+    async _performSyncAll() {
+        const repos = await this.gitea.listRepos();
+        console.log(`[Sync-All] ${repos.length} Repository gefunden.`);
+
+        for (const { owner, name } of repos) {
+            try {
+                await this.syncRepository(owner, name, 'main');
+                console.log(`[Sync-All] Repo ${owner}/${name} synchronisiert.`);
+            } catch (error) {
+                console.error(`[Sync-All] Fehler bei Repo ${owner}/${name}:`, error.message);
+            }
+        }
+
+        console.log('[Sync-All] Re-Sync aller Repositories abgeschlossen.');
+    }
+
+    /**
      * Fully synchronizes all Markdown files of a repository with Qdrant.
      *
      * Files are processed concurrently, bounded by the concurrency limiter (same as handlePushEvent).
@@ -142,7 +203,7 @@ class GiteaQdrantSync {
         }
 
         const payload = {
-            repository: { html_url: `https://${this.gitea.url.replace(/\/api\/v1$/, '')}/${owner}/${name}` },
+            repository: { owner: { username: owner }, name, html_url: `https://${this.gitea.url.replace(/\/api\/v1$/, '')}/${owner}/${name}` },
             after: ref
         };
 

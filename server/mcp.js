@@ -115,6 +115,24 @@ class McpService {
             }
         );
 
+        this.mcpServer.registerTool(
+            'sync-all',
+            {
+                description: 'Synchronisiert alle Markdown-Dateien aller Gitea-Repositories in Qdrant. Läuft im Hintergrund.',
+                inputSchema: z.object({})
+            },
+            async () => {
+                if (this.sync._syncInProgress) {
+                    return {
+                        content: [{ type: 'text', text: 'Re-Sync läuft bereits. Bitte warten bis er abgeschlossen ist.' }],
+                        isError: false
+                    };
+                }
+                const result = await this.sync.syncAllRepositories();
+                return { content: [{ type: 'text', text: result.message }] };
+            }
+        );
+
         return this.mcpServer;
     }
 }

@@ -40,6 +40,11 @@ export async function search(question) {
   return { answer: data.answer };
 }
 
+export async function syncAll() {
+  const res = await request('/sync-all', { method: 'POST' });
+  return res.json();
+}
+
 export async function* searchStream(question) {
   let res;
   try {

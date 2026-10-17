@@ -58,6 +58,21 @@ class Gitea {
     }
 
     /**
+     * Lists all repositories accessible to the authenticated user.
+     * @returns {Promise<Array<{owner: string, name: string}>>} Array of repositories
+     */
+    async listRepos() {
+        const url = `${this.url}/api/v1/user/repos`;
+        const res = await axios.get(url, {
+            headers: { Authorization: `token ${this.token}` }
+        });
+        return res.data.map(repo => ({
+            owner: repo.owner.username,
+            name: repo.name
+        }));
+    }
+
+    /**
      * Recursively lists all Markdown files in a repository tree.
      * @param {string} owner - Repository owner
      * @param {string} name - Repository name

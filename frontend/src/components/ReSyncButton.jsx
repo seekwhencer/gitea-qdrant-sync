@@ -1,0 +1,43 @@
+import { useState } from 'react';
+import { syncAll } from '../api/client';
+
+export default function ReSyncButton() {
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const handleClick = async () => {
+    setPending(true);
+    setMessage(null);
+    try {
+      await syncAll();
+      setMessage('Re-Sync aller Repositories gestartet im Hintergrund.');
+    } catch (error) {
+      setMessage(error.message || 'Re-Sync fehlgeschlagen.');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="re-sync">
+      <button
+        className="re-sync__button"
+        type="button"
+        disabled={pending}
+        onClick={handleClick}
+      >
+        {pending ? (
+          <>
+            <span className="re-sync__spinner" aria-hidden="true" />
+            Re-Sync läuft…
+          </>
+        ) : (
+          'Gitea Re-Sync'
+        )}
+      </button>
+      {message && (
+        <p className="re-sync__message">{message}</p>
+      )}
+    </div>
+  );
+}

@@ -1,4 +1,5 @@
 import SearchBar from './components/SearchBar';
+import ReSyncButton from './components/ReSyncButton';
 import StreamingResults from './components/StreamingResults';
 import Conversation from './components/Conversation';
 import { useSearchStream } from './hooks/useSearch';
@@ -22,6 +23,7 @@ export default function App() {
   return (
     <main className="main__container">
       <h1>Gitea Markdown Search RAG</h1>
+      <ReSyncButton />
       <div className="app__layout">
         <section className="app__primary">
           <SearchBar onSubmit={handleSubmit} pending={pending} />
