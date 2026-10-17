@@ -31,7 +31,13 @@ class Config {
     constructor(env = process.env) {
         this.env = env;
         this.configPath = this.resolvePath();
-        this.defaults = this.loadOrGenerateDefaults();
+
+        const loadedDefaults =
+            existsSync(this.configPath)
+                ? JSON.parse(readFileSync(this.configPath, 'utf8'))
+                : null;
+
+        this.defaults = loadedDefaults ?? this.buildDefaults();
 
         this.serverPort = parseInt(env.SERVER_PORT, 10) || this.defaults.serverPort;
         this.qdrantUrl = env.QDRANT_URL || this.defaults.qdrantUrl;
@@ -85,18 +91,15 @@ class Config {
     }
 
     /**
-     * Loads config.json or creates it if it does not exist.
-     * @returns {Record<string, string | number>}
+     * Writes the default configuration file explicitly.
+     * Intended to be invoked by a separate setup step (e.g. CLI flag --init-config).
      */
-    loadOrGenerateDefaults() {
-        this.configPath = this.resolvePath();
-
-        if (!existsSync(this.configPath)) {
-            writeFileSync(this.configPath, JSON.stringify(this.buildDefaults(), null, 4), 'utf8');
-            console.log(`[Config] No config.json found, created at ${this.configPath}`);
-        }
-
-        return JSON.parse(readFileSync(this.configPath, 'utf8'));
+    saveDefaults() {
+        writeFileSync(
+            this.configPath,
+            JSON.stringify(this.buildDefaults(), null, 4),
+            'utf8'
+        );
     }
 }
 

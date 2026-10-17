@@ -215,6 +215,7 @@ const chunks = results.map(item => ({
 **Aufgabe:** Erstellen Sie einen minimalen Test-Suite.
 
 - **Fix:**
+  - Nur Server
   - Installieren Sie ein Testing-Framework (z.B. `vitest` oder `jest`) als Dev-Dependency.
   - Unit tests für:
     - Config-Loading (`server/config.js`)

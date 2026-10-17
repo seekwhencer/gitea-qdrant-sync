@@ -48,6 +48,13 @@ class App {
 
 }
 
+
+if (process.argv.includes('--init-config')) {
+    new Config().saveDefaults();
+    console.log('[Config] Defaults written to config.json.');
+    process.exit(0);
+}
+
 new App().run();
 
 export { App };

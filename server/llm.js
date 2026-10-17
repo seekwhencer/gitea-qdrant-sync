@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { createHash } from 'node:crypto';
 
 /**
  * LLM service for generating embeddings and chat completions via Ollama or OpenAI-compatible APIs.
@@ -31,6 +32,10 @@ class Llm {
             baseUrl: this.normalizeUrl(chatUrl),
             modelName: chatModel
         };
+
+        // Cache for embeddings keyed by SHA-256 of the chunk text.
+        // Avoids redundant LLM calls when identical chunks are re-synced within a session/process.
+        this._embeddingCache = new Map();
     }
 
     /**
@@ -40,37 +45,58 @@ class Llm {
      */
     normalizeUrl(url) {
         return String(url || '').replace(/\/+$/, '');
-    }
-
-    /**
+    }    /**
      * Generates an embedding vector for the given text.
      * @param {string} text - The text to embed
      * @returns {Promise<number[]>} The embedding vector
      */
     async embed(text) {
-        const cfg = this.embeddingsConfig;
-        const base = this.normalizeUrl(cfg.baseUrl);
+        // Return cached embedding for identical chunk text, avoiding redundant LLM calls.
+        const key = createHash('sha256').update(String(text)).digest('hex');
+        if (this._embeddingCache.has(key)) return this._embeddingCache.get(key);
 
-        if (cfg.api === 'openapi') {
-            const res = await axios.post(`${base}/embeddings`, {
-                model: cfg.modelName,
-                input: text
-            });
-            const body = res.data;
-            if (Array.isArray(body.data)) {
-                return body.data[0].embedding;
+        let vector;
+
+        try {
+            const cfg = this.embeddingsConfig;
+            const base = this.normalizeUrl(cfg.baseUrl);
+
+            if (cfg.api === 'openapi') {
+                const res = await axios.post(`${base}/embeddings`, {
+                    model: cfg.modelName,
+                    input: text
+                });
+                const body = res.data;
+                if (Array.isArray(body.data)) {
+                    vector = body.data[0].embedding;
+                } else {
+                    throw new Error('Unrecognized OpenAI embedding response shape');
+                }
+            } else {
+                const res = await axios.post(`${base}/api/embed`, {
+                    model: cfg.modelName,
+                    input: text
+                });
+                const body = res.data;
+                if (Array.isArray(body.embeddings)) {
+                    vector = body.embeddings[0];
+                } else if (Array.isArray(body.embedding)) {
+                    vector = body.embedding;
+                } else {
+                    throw new Error('Unrecognized Ollama embedding response shape');
+                }
             }
-            throw new Error('Unrecognized OpenAI embedding response shape');
-        }
 
-        const res = await axios.post(`${base}/api/embed`, {
-            model: cfg.modelName,
-            input: text
-        });
-        const body = res.data;
-        if (Array.isArray(body.embeddings)) return body.embeddings[0];
-        if (Array.isArray(body.embedding)) return body.embedding;
-        throw new Error('Unrecognized Ollama embedding response shape');
+            if (vector === undefined) {
+                throw new Error('Unrecognized embedding response shape');
+            }
+
+            this._embeddingCache.set(key, vector);
+            return vector;
+        } catch (error) {
+            console.error(`[Embed] Failed to generate embedding for chunk:`, error);
+            throw error;
+        }
     }
 
     /**

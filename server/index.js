@@ -22,6 +22,14 @@ export class Server {
         this.app = express();
         this.httpServer = createHttpServer(this.app);
 
+        // security headers on every response (covers all routes, 404 and 500 handlers)
+        this.app.use((req, res, next) => {
+            res.setHeader('X-Frame-Options', 'DENY');
+            res.setHeader("Content-Security-Policy", "default-src 'self'");
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            next();
+        });
+
         // MCP service
         this.mcpService = new McpService({ search: this.search, sync: this.sync });
 

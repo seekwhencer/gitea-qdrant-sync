@@ -5,9 +5,13 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch --watch-path=./server --watch-path=./index.js --watch-path=./config.json index.js"
+    "dev": "node --watch --watch-path=./server --watch-path=./index.js --watch-path=./config.json index.js",
+    "test": "vitest run"
   },
-    "dependencies": {
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
     "@modelcontextprotocol/express": "^2.0.2",
     "@modelcontextprotocol/node": "^2.1.1",
     "@modelcontextprotocol/server": "^2.3.1",

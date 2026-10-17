@@ -2,8 +2,40 @@ import { Qdrant } from './qdrant.js';
 import { Llm } from './llm.js';
 import { Gitea } from './gitea.js';
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Simple concurrency limiter (semaphore). Limits how many task functions run
+ * concurrently so downstream rate limits (e.g. Qdrant) are respected.
+ */
+class ConcurrencyLimiter {
+    constructor(limit = 1) {
+
+        this.limit = Math.max(Number(limit), 1);
+        this.activePromises = [];
+    }
+
+    async run(taskFn) {
+
+        if (this.activePromises.length >= this.limit) {
+            // Wait for the fastest in-flight task to settle before starting a new one.
+            await Promise.race(this.activePromises.map(p => p.catch(() => undefined)));
+        }
+        const promise = taskFn();
+        this.activePromises.push(promise);
+        try {
+            return await promise;
+        } finally {
+            void this.activePromises.splice(this.activePromises.indexOf(promise), 1);
+        }
+    }
+}
+
 /**
  * Orchestrates synchronization of Gitea repository files to Qdrant.
+ *
  * Reads Markdown files, creates embeddings, and stores vectors in Qdrant.
  */
 class GiteaQdrantSync {
@@ -41,6 +73,13 @@ class GiteaQdrantSync {
         qdrantChunkMaxSize
     } = {}) {
         this.qdrantChunkMaxSize = qdrantChunkMaxSize;
+
+        const maxConcurrency = Number(process.env.QDRANT_MAX_CONCURRENCY ?? 4);
+        const maxUpsertRetries = Number(process.env.QDRANT_MAX_UPSERT_RETRIES ?? 5);
+
+        this.limiter = new ConcurrencyLimiter(Math.max(maxConcurrency, 1));
+        this.maxUpsertRetries = Math.max(Number(maxUpsertRetries), 0);
+
         this.gitea = new Gitea({ url: giteaApiUrl, token: giteaToken });
         this.qdrant = qdrant || new Qdrant({ url: qdrantUrl, port: qdrantPort, collection: qdrantCollection });
         this.llm = llm || new Llm({
@@ -51,6 +90,13 @@ class GiteaQdrantSync {
 
     /**
      * Processes a Gitea push webhook: extracts changed Markdown files and synchronizes them.
+     *
+     * Files are processed concurrently (bounded by the concurrency limiter) so that Qdrant rate limits
+     * are respected. Within one file its chunks are embedded and upserted in parallel via Promise.all.
+     * Errors of individual files are logged; processing continues with the remaining files. Only if no
+     * file could be processed successfully an error is thrown, keeping the webhook HTTP status at 200 as
+     * long as at least one file was synchronized.
+     *
      * @param {object} payload - Webhook payload
      * @returns {Promise<void>}
      */
@@ -59,23 +105,30 @@ class GiteaQdrantSync {
         console.log(`[Webhook] Push received for repository: ${repository.html_url}`);
 
         const changedFiles = this.gitea.collectMarkdownFiles(payload.commits || []);
+        if (changedFiles.length === 0) return;
 
-        for (const filePath of changedFiles) {
-            try {
-                await this.syncFile(payload, filePath);
-            } catch (error) {
-                console.error(`[Sync] Error processing file ${filePath}:`, error);
-                throw error;
+        // Process files concurrently, bounded by the concurrency limiter.
+        const results = await Promise.all(changedFiles.map(filePath => this.limiter.run(async () => {
+            try { await this.syncFile(payload, filePath); return true; }
+            catch (error) {
+                console.error(`[Sync] Error processing changed file ${filePath}:`, error);
+                return false;
             }
+        })));
+
+        const successCount = results.filter(Boolean).length;
+
+        if (successCount === 0 && changedFiles.length > 0) {
+            throw new Error('No files could be synchronized successfully.');
         }
+
+        console.log(`[Webhook] Synchronized ${successCount}/${changedFiles.length} changed files for ${repository.html_url}.`);
     }
 
     /**
      * Fully synchronizes all Markdown files of a repository with Qdrant.
-     * @param {string} owner - Repository owner
-     * @param {string} name - Repository name
-     * @param {string} [ref='main'] - Git ref/branch/commit
-     * @returns {Promise<void>}
+     *
+     * Files are processed concurrently, bounded by the concurrency limiter (same as handlePushEvent).
      */
     async syncRepository(owner, name, ref = 'main') {
         console.log(`[Sync] Starting full sync for ${owner}/${name} (ref: ${ref})`);
@@ -83,24 +136,34 @@ class GiteaQdrantSync {
         const markdownFiles = await this.gitea.listFiles(owner, name, ref);
         console.log(`[Sync] Found ${markdownFiles.length} Markdown files in ${owner}/${name}`);
 
+        if (markdownFiles.length === 0) {
+            console.log(`[Sync] No Markdown files found for ${owner}/${name}.`);
+            return;
+        }
+
         const payload = {
             repository: { html_url: `https://${this.gitea.url.replace(/\/api\/v1$/, '')}/${owner}/${name}` },
             after: ref
         };
 
-        for (const filePath of markdownFiles) {
-            try {
-                await this.syncFile(payload, filePath);
-            } catch (error) {
+        // Process files concurrently, bounded by the concurrency limiter. Errors of individual files are logged.
+        await Promise.all(markdownFiles.map(filePath => this.limiter.run(async () => {
+            try { await this.syncFile(payload, filePath); }
+            catch (error) {
                 console.error(`[Sync] Error processing file ${filePath}:`, error);
             }
-        }
+        })));
 
         console.log(`[Sync] Repository ${owner}/${name} synced with ${markdownFiles.length} files.`);
     }
 
     /**
-     * Synchronizes a single file: loads content, splits into chunks, creates embeddings, and stores in Qdrant.
+     * Synchronizes a single file: loads content, splits into chunks, creates embeddings,
+     * and stores them in Qdrant.
+     *
+     * Chunks of one file are processed in parallel (Promise.all over the chunk list).
+     * Upserts that fail due to rate limits are retried with exponential backoff.
+     *
      * @param {object} payload - Webhook payload with repository information
      * @param {string} filePath - Path of the file to synchronize
      * @returns {Promise<void>}
@@ -111,12 +174,68 @@ class GiteaQdrantSync {
         const content = await this.gitea.fetchFile(payload.repository, filePath, payload.after);
         const chunks = this.chunkContent(content);
 
-        await this.qdrant.deleteBySource(filePath);
-
-        for (const chunkText of chunks) {
-            const vector = await this.llm.embed(chunkText);
-            await this.qdrant.upsert(vector, chunkText, filePath, payload.repository.html_url);
+        // Remove previously indexed points for this source path so the upsert below
+        // replaces rather than duplicates them.
+        try { await this.qdrant.deleteBySource(filePath); }
+        catch (err) {
+            if (!this.qdrant.isCollectionNotFoundError(err)) throw err;
         }
+
+        if (chunks.length === 0) return;
+
+        const repositoryUrl = payload.repository && payload.repository.html_url ? String(payload.repository.html_url) : '';
+
+        // Embed and upsert all chunks of this file in parallel. The outer concurrency
+        // limiter bounds how many files run at the same time, keeping Qdrant rate limits respected.
+        await Promise.all(chunks.map(async chunkText => {
+            const vector = await this.llm.embed(chunkText);
+            try { return await this.upsertWithRetry(vector, chunkText, filePath, repositoryUrl); }
+            catch (error) {
+                console.error(`[Sync] Error upserting chunks of ${filePath}:`, error);
+                throw error;
+            }
+        }));
+    }
+
+    /**
+     * Upserts a single point with exponential backoff on rate-limit errors.
+     *
+     * @param {number[]} vector - The embedding vector
+     * @param {string} chunkText - The text content of the point
+     * @param {string} filePath - Source path (used as `source`/`path`)
+     * @param {string} repositoryUrl - Repository URL used for idempotent point ids and metadata
+     * @returns {Promise<void>}
+     */
+    async upsertWithRetry(vector, chunkText, filePath, repositoryUrl) {
+        let lastError;
+        const maxAttempts = this.maxUpsertRetries + 1;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try { return await this.qdrant.upsert(vector, { text: chunkText, source: filePath, repository: repositoryUrl }); }
+            catch (err) {
+                if (!this.isRateLimitError(err)) throw err;
+                lastError = err;
+                const delayMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+                console.log(`[Sync] Rate limit hit for ${filePath}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts})`);
+                await sleep(delayMs);
+            }
+        }
+
+        throw lastError ?? new Error(`Upsert failed after ${maxAttempts} attempts: ${filePath}`);
+    }
+
+    /**
+     * Returns true when the error indicates a Qdrant rate limit (HTTP 429 / "rate limited").
+     *
+     * @param {object} err - The error object
+     * @returns {boolean}
+     */
+    isRateLimitError(err) {
+        return (
+            err?.status === 429 ||
+            String(err?.message ?? '').toLowerCase().includes('rate limit') ||
+            String(err?.message ?? '').toLowerCase().includes('too many requests')
+        );
     }
 
     /**

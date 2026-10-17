@@ -2,100 +2,120 @@
 
 ## Ziel
 
-Dem bestehenden Express-Service ein **MCP-Tool-Endpoint** hinzufügen, über den ein LLM-Client (Claude Code, Cursor, etc.) zwei Tools aufrufen kann:
+Dem bestehenden Express-Service ein **MCP-Tool-Endpoint** hinzufügen, über den ein LLM-Client (Claude Code, Cursor, etc.) drei Tools aufrufen kann:
 
-1. **`search`** — RAG-Frage beantworten (SSE-Streaming)
-2. **`sync`** — manuellen Sync für ein Repo triggern
+1. **`ask`** — RAG-Frage beantworten (Vektorsuche in Qdrant + LLM-Antwort)
+2. **`search`** — rohe Vektor-Treffer ohne LLM zurückgeben
+3. **`sync`** — manuellen Sync für ein Repo triggern
 
-Transport: **SSE** (Server-Sent Events) über einen einzigen `/mcp` Endpoint. Kein stdio, kein separater Prozess.
+Transport: **Streamable HTTP** über einen einzigen `/mcp` Endpoint. Kein stdio, kein separater Prozess, kein SSE-Handshake mit zwei Endpoints.
 
 ---
 
 ## Architektur-Entscheidungen
 
-### Warum SSE statt Streamable HTTP?
+### Warum Streamable HTTP statt SSE?
 
 - Der bestehende Server ist bereits ein langlebiger Express-Prozess.
-- SSE ist einfacher zu integrieren: ein POST zum Initialisieren, dann ein SSE-Stream für die Antwort.
-- Keine Session-ID-Verwaltung nötig — jeder MCP-Aufruf ist stateless (wie der bestehende `/search` vs `/search/stream`).
-- Der bestehende `Search.streamAndAnswer()` Generator passt direkt in einen SSE-Stream.
+- Das MCP v2 SDK (`@modelcontextprotocol/server@^2`) bietet den **Streamable HTTP**-Transport als offiziellen Standard an.
+- **Ein einziger Endpoint** `/mcp` statt zweier SSE-Endpoints (`/mcp` + `/mcp/message`) — kein zustandsbehafteter Transport, der zwischen zwei Requests persistiert werden muss.
+- Streaming-Antworten werden über `Connection: upgrade` + `text/event-stream` ausgeliefert; nicht-streaming Antworten als normales JSON-RPC-Response.
+- Die JSON-RPC-Nachrichtenverwaltung (Session-ID, Pipelining, Cancel, Disconnect) übernimmt das SDK (`createMcpHandler`) — keine manuelle Implementierung.
 
 ### Wo läuft die Logik?
 
 Die MCP-Tools sind **dünne Wrapper** um die bestehenden Klassen `Search` und `GiteaQdrantSync`. Keine Duplizierung.
 
-Die MCP-spezifische Logik (Tool-Registrierung, Transport-Handling) kommt in eine neue Klasse `McpService` in `server/mcp.js`.
+Drei Komponenten:
+
+- `server/mcp.js` — `McpService`: hält die Abhängigkeiten und erstellt mit `createServer()` ein konfiguriertes `McpServer`-Exemplar (Tools registrieren).
+- `server/mcpRouter.js` — `McpRouter`: serviert die MCP-Routen über `createMcpHandler` + `toNodeHandler` und führt die Host-Validierung (`MCP_ALLOWED_HOSTS`) durch.
+- `server/router.js` / `server/index.js` — integrieren beide und initialisieren/beenden den Service.
 
 ### Abhängigkeiten
 
 ```json
 {
-  "@modelcontextprotocol/sdk": "^1.12.1"
+  "@modelcontextprotocol/server": "^2.3.1",
+  "@modelcontextprotocol/node": "^2.1.1",
+  "@modelcontextprotocol/express": "^2.0.2",
+  "zod": "^4.6.7"
 }
 ```
 
-Das `@modelcontextprotocol/sdk` Paket enthält `McpServer`, `Tool`, `SSEServerTransport` und alle JSON-RPC-Primitive.
+- `@modelcontextprotocol/server` — `McpServer` (v2 class pattern) und `createMcpHandler` (Streamable HTTP Handler).
+- `@modelcontextprotocol/node` — `toNodeHandler` (Adapter von der SDK-Handler-Signatur auf `(req, res, body)`).
+- `zod` — Schemata für Tool-Input-Schemas (`zod/v4`).
 
 ---
 
-## SSE-Protokoll-Flow
+## Streamable HTTP-Protokoll-Flow
 
 ```
 Client                          Server
   |                                 |
   |  POST /mcp                      |
+  |  Content-Type: application/json |
   |  {"jsonrpc":"2.0","id":1,       |
   |   "method":"initialize",        |
-  |   "params":{"protocolVersion":..}}|
+  |   "params":{...}}               |
   |                                 |
-  |  ← 200 OK                       |
+  |  ← 202 Accepted                 |
+  |  Connection: upgrade            |
   |  Content-Type: text/event-stream|
   |                                 |
   |  ← event: message               |
   |     data: {"jsonrpc":"2.0",     |
-  |       "result":{"protocolVersion":..}}
+  |       "result":{...}}           |
   |                                 |
-  |  ← event: message               |
-  |     data: {"jsonrpc":"2.0",     |
-  |       "method":"tools/list",     |
-  |       "params":{...}}           |
+  |  POST /mcp                      |
+  |  Accept: application/json,      |
+  |        text/event-stream        |
+  |  {"jsonrpc":"2.0",              |
+  |   "method":"notifications/initialized"}|
   |                                 |
-  |  ← event: message               |
-  |     data: {"jsonrpc":"2.0",     |
-  |       "result":{"tools":[...]}} |
+  |  ← 202 Accepted                 |
   |                                 |
   |  POST /mcp                      |
   |  {"jsonrpc":"2.0","id":2,       |
+  |   "method":"tools/list"}        |
+  |                                 |
+  |  ← 200 OK / 202 Accepted        |
+  |  (JSON-Response oder SSE-Stream)|
+  |  data: {"result":{"tools":[...]}}|
+  |                                 |
+  |  POST /mcp                      |
+  |  {"jsonrpc":"2.0","id":3,       |
   |   "method":"tools/call",        |
-  |   "params":{"name":"search",    |
+  |   "params":{"name":"ask",       |
   |     "arguments":{"question":".."}}}|
   |                                 |
+  |  ← 202 Accepted (Streaming)     |
   |  ← event: message               |
-  |     data: {"jsonrpc":"2.0",     |
-  |       "result":{                |
-  |         "content":[             |
-  |           {"type":"text",       |
-  |            "text":"..."}]}}     |
+  |     data: {"result":{           |
+  |       "content":[{"type":"text", |
+  |        "text":"..."}]}}         |
   |                                 |
+  |  POST /mcp                      |
+  |  {"jsonrpc":"2.0","id":4,       |
+  |   "method":"notifications/cancel"}|
+  |                                 |
+  |  ← 202 Accepted                 |
+  |                                 |
+  |  DELETE /mcp                    |
+  |  {"jsonrpc":"2.0","id":null,    |
+  |   "method":"$disconnect"}       |
+  |                                 |
+  |  ← 202 Accepted                 |
+  |  (Stream wird geschlossen)      |
 ```
 
-Für **streaming** (search tool):
+Wichtig:
 
-```
-  |  POST /mcp (tools/call: search) |
-  |                                 |
-  |  ← event: message               |
-  |     data: {"jsonrpc":"2.0",     |
-  |       "result":{                |
-  |         "content":[             |
-  |           {"type":"text",       |
-  |            "text":"partial..."}]}}
-  |                                 |
-  |  ← event: message (weitere)     |
-  |     data: {"jsonrpc":"2.0",     |
-  |       "result":{...}}           |
-  |                                 |
-```
+- **Ein Endpoint** `/mcp` für alle Methoden (POST = Nachrichten, GET = SSE-Stream fortsetzen, DELETE = Disconnect).
+- Nach `initialize` sendet der Client `notifications/initialized` (kein `id`, keine Antwort erwartet).
+- Der Client kann mehrere Requests pipelinen, ohne auf vorherige Responses zu warten.
+- Streaming-Antworten (`tools/call` mit langer Antwort) kommen über `Connection: upgrade` + SSE; kurze Antworten als JSON.
 
 ---
 
@@ -103,9 +123,10 @@ Für **streaming** (search tool):
 
 ```
 server/
-├── mcp.js          ← Neue Datei: McpService Klasse
-├── router.js       ← Erweiterung: /mcp Route
-├── index.js        ← Erweiterung: McpService instanziieren
+├── mcp.js          ← McpService Klasse (createServer: Tools registrieren)
+├── mcpRouter.js    ← McpRouter Klasse (Streamable HTTP + Host-Validierung)
+├── router.js       ← Erweiterung: McpRouter integrieren
+├── index.js        ← Erweiterung: McpService instanziieren/initialisieren
 └── ...
 ```
 
@@ -114,33 +135,43 @@ server/
 ## `server/mcp.js` — McpService Klasse
 
 ```js
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { z } from 'zod';
+import { McpServer } from '@modelcontextprotocol/server';
+import * as z from 'zod/v4';
 
 class McpService {
     constructor({ search, sync }) {
         this.search = search;
         this.sync = sync;
         this.mcpServer = null;
-        this.sseTransport = null;
-        this.sseEndpoint = null; // gespeichert für den SSE-Stream
     }
 
-    async init() {
+    init() {
+        console.log('[MCP] Service initialized (v2 class pattern)');
+        return Promise.resolve();
+    }
+
+    shutdown() {
+        this.mcpServer = null;
+        return Promise.resolve();
+    }
+
+    /**
+     * Erstellt und konfiguriert ein McpServer-Exemplar mit den Tools
+     * `ask`, `search` und `sync`. Wird pro Session lazily vom Router aufgerufen.
+     */
+    createServer() {
         this.mcpServer = new McpServer({
             name: 'gitea-qdrant-sync',
             version: '1.0.0'
         });
 
-        // Tool: search
         this.mcpServer.registerTool(
-            'search',
+            'ask',
             {
-                description: 'Beantwortet eine Frage auf Basis der synchronisierten Gitea-Dokumentation (RAG). Nutzt Vektorsuche in Qdrant + LLM-Antwort mit Streaming.',
-                inputSchema: {
-                    question: { type: 'string', description: 'Die Frage, die beantwortet werden soll' }
-                }
+                description: 'Beantwortet eine Frage auf Basis der synchronisierten Gitea-Dokumentation (RAG). Nutzt Vektorsuche in Qdrant + LLM-Antwort.',
+                inputSchema: z.object({
+                    question: z.string().describe('Die Frage, die beantwortet werden soll')
+                })
             },
             async ({ question }) => {
                 const answer = await this.search.searchAndAnswer(question);
@@ -154,28 +185,47 @@ class McpService {
             }
         );
 
-        // Tool: sync
+        this.mcpServer.registerTool(
+            'search',
+            {
+                description: 'Durchsucht die synchronisierte Gitea-Dokumentation mit Vektorsuche in Qdrant. Gibt rohe Treffer ohne LLM zurück.',
+                inputSchema: z.object({
+                    question: z.string().describe('Die Suchanfrage')
+                })
+            },
+            async ({ question }) => {
+                const chunks = await this.search.searchAndReturnChunks(question);
+                if (chunks.length === 0) {
+                    return {
+                        content: [{ type: 'text', text: 'Keine Ergebnisse gefunden. Vielleicht ist das Thema noch nicht synchronisiert.' }],
+                        isError: false
+                    };
+                }
+                return { content: [{ type: 'text', text: JSON.stringify(chunks, null, 2) }] };
+            }
+        );
+
         this.mcpServer.registerTool(
             'sync',
             {
-                description: 'Triggert einen manuellen Sync der Markdown-Dateien eines Gitea-Repositories nach Qdrant.',
-                inputSchema: {
-                    repository: { type: 'string', description: 'Repo-Pfad in Gitea, z.B. "owner/repo"' },
-                    ref: { type: 'string', optional: true, description: 'Git-Ref/Branch/Commit, default: main/master' }
-                }
+                description: 'Triggert einen manuellen Sync aller Markdown-Dateien eines Gitea-Repositories.',
+                inputSchema: z.object({
+                    repository: z.string().describe('Repo-Pfad in Gitea, z.B. "owner/repo"'),
+                    ref: z.string().optional().describe('Git-Ref/Branch/Commit, default: main')
+                })
             },
             async ({ repository, ref }) => {
-                // Parse repository string to extract owner and name
-                const [owner, name] = repository.split('/');
-                if (!owner || !name) {
+                const parts = repository.split('/');
+                if (parts.length < 2) {
                     return {
                         content: [{ type: 'text', text: 'Ungültiges Repository-Format. Erwartet: owner/repo' }],
                         isError: true
                     };
                 }
+                const [owner, name] = parts;
 
                 try {
-                    await this.sync.syncRepository(owner, name, ref);
+                    await this.sync.syncRepository(owner, name, ref || 'main');
                     return { content: [{ type: 'text', text: `Sync für ${repository} abgeschlossen.` }] };
                 } catch (error) {
                     return {
@@ -186,50 +236,7 @@ class McpService {
             }
         );
 
-        await this.mcpServer.start();
-    }
-
-    /**
-     * Handler für den initialen POST /mcp (Protocol-Initialisierung).
-     * Gibt die SSE-URL zurück und speichert den Transport.
-     */
-    async handleSsePost() {
-        this.sseTransport = new SSEServerTransport('/mcp/message', {
-            reqHeaders: { 'Content-Type': 'application/json' }
-        });
-
-        const url = this.sseEndpoint; // wird von der Route gesetzt
-
-        await this.mcpServer.connect(this.sseTransport);
-
-        return this.sseTransport;
-    }
-
-    /**
-     * Gibt den aktuellen Transport zurück (für den SSE-Stream).
-     */
-    getTransport() {
-        return this.sseTransport;
-    }
-
-    /**
-     * Setzt die SSE-Endpoint-URL (wird von der Route aufgerufen).
-     */
-    setSseEndpoint(url) {
-        this.sseEndpoint = url;
-    }
-
-    /**
-     * Cleanup beim Shutdown.
-     */
-    async shutdown() {
-        if (this.sseTransport) {
-            await this.sseTransport.close();
-        }
-        if (this.mcpServer) {
-            // McpServer hat keine explizite close-Methode in v1,
-            // aber der Transport wird geschlossen.
-        }
+        return this.mcpServer;
     }
 }
 
@@ -238,56 +245,106 @@ export { McpService };
 
 ---
 
-## Erweiterung `server/router.js`
+## `server/mcpRouter.js` — McpRouter Klasse
 
-Neue Route im Router:
+Der Router adaptiert den Streamable-HTTP-Handler des SDK auf Node.js und schützt die MCP-Routen mit einer Host-Whitelist (`MCP_ALLOWED_HOSTS`, DNS-Rebinding-Schutz).
 
 ```js
-// MCP SSE endpoint
-this.router.post('/mcp', async (req, res) => {
-    if (!this.mcpService) {
-        return res.status(503).json({ error: 'MCP not initialized' });
+import express from 'express';
+import { createMcpHandler } from '@modelcontextprotocol/server';
+import { toNodeHandler } from '@modelcontextprotocol/node';
+
+class McpRouter {
+    constructor(config, mcpService) {
+        this.config = config;
+        this.mcpService = mcpService;
+        this.router = express.Router();
+        this.define();
+        return this.router;
     }
 
-    // Ersten POST (initialize) erkennen: body enthält "method":"initialize"
-    const isInitialize = req.body?.method === 'initialize';
+    define() {
+        if (!this.mcpService || !this.config.mcpEnabled) return;
 
-    if (isInitialize) {
-        // SSE-Transport erstellen
-        const transport = await this.mcpService.handleSsePost();
+        const mcpPath = this.config.mcpPath || '/mcp';
 
-        // SSE-Header setzen
-        res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-            'X-Accel-Buffering': 'no'
-        });
+        // MCP_ALLOWED_HOSTS Host-Validierung. Bei leerer/konfigurativer Konfiguration komplett überspringen.
+        let allowedHosts;
+        try {
+            const raw =
+                typeof this.config.mcpAllowedHosts === 'string'
+                    ? this.config.mcpAllowedHosts
+                    : '';
+            const parsed =
+                [...new Set(raw.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean))];
+            if (parsed.length > 0) allowedHosts = new Set(parsed);
+        } catch {
+            // malformed config → skip validation
+        }
 
-        // Transport-URL speichern
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
-        this.mcpService.setSseEndpoint(`${baseUrl}/mcp/message`);
-
-        // SSE-Stream vom Transport starten
-        transport.handlePostMessage = async (req, res) => {
-            // Wird für /mcp/message verwendet
+        const stripPort = (host) => {
+            const bracketed =
+                /^\[([^\]]*)\](?::(\d+))?$/.exec(host.toLowerCase());
+            if (bracketed) return `[${bracketed[1]}]`;
+            const idx = host.lastIndexOf(':');
+            return idx >= 0 ? host.slice(0, idx).toLowerCase() : host.toLowerCase();
         };
 
-        // Den SSE-Stream vom Transport an res.pipe übergeben
-        // Der SSEServerTransport sendet messages über res.write()
-        // Wir müssen den internen Response-Stream des Transports nutzen
-    } else {
-        // Zweiter POST: /mcp/message — forward zum Transport
-        // ...
+        // Host-Validierung für alle nodeHandler-bedienten MCP-Routen (/mcp und /mcp/message).
+        if (allowedHosts && allowedHosts.size > 0) {
+            this.router.use((req, res, next) => {
+                const rawHost = req.headers['host'] || '';
+                let ok;
+                for (const a of allowedHosts) {
+                    if (
+                        stripPort(rawHost).toLowerCase() === a ||
+                        rawHost.toLowerCase() === a
+                    ) { ok = true; break; }
+                }
+
+                if (!ok) {
+                    return res.status(403).json({
+                        error: 'Host not allowed',
+                        message:
+                            `Host ${rawHost} is not in the MCP_ALLOWED_HOSTS whitelist.`,
+                    });
+                }
+
+                next();
+            });
+        }
+
+        const mcpFactory = () => this.mcpService.createServer();
+        const handler = createMcpHandler(mcpFactory);
+        const nodeHandler = toNodeHandler(handler);
+
+        // Middleware oben läuft vor der Route, also jede von nodeHandler bediente
+        // Request (z.B. /mcp und /mcp/message) durchläuft die Host-Validierung.
+        this.router.all(mcpPath, (req, res) => {
+            void nodeHandler(req, res, req.body);
+        });
     }
-});
+}
+
+export { McpRouter };
 ```
 
-**Korrektur:** Der `SSEServerTransport` aus dem MCP SDK erwartet zwei Endpoints:
-1. `POST /mcp` — initialisiert den Transport, gibt SSE-URL zurück
-2. `POST /mcp/message` — empfängt JSON-RPC-Nachrichten, leitet sie an den Transport weiter
+---
 
-Die Implementierung muss beide Pfade unterscheiden.
+## Erweiterung `server/router.js`
+
+Der `McpRouter` wird am Ende der Routen integriert:
+
+```js
+import { McpRouter } from './mcpRouter.js';
+
+// Im Router-Konstruktor:
+this.mcpService = mcpService; // wird von index.js übergeben
+
+// Im Router.define():
+const mcpRouter = new McpRouter(this.config, this.mcpService);
+this.router.use('/', mcpRouter);
+```
 
 ---
 
@@ -298,23 +355,27 @@ import { McpService } from './mcp.js';
 
 // Im Server-Constructor:
 this.mcpService = new McpService({ search: this.search, sync: this.sync });
-await this.mcpService.init();
-
-// Im Router-Konstruktor:
 this.router = new Router(this.config, this.sync, this.search, this.httpServer, this.mcpService);
 
-// Im Router.define():
-// MCP routes hinzufügen (siehe oben)
+// Im start():
+try {
+    await this.mcpService.init();
+    console.log('[MCP] Server initialized');
+} catch (error) {
+    console.error('[MCP] Initialization failed, continuing without MCP:', error.message);
+}
 
 // Im Shutdown:
 await this.mcpService.shutdown();
 ```
 
+Fehlerbehandlung: Wenn die MCP-Initialisierung fehlschlägt, fährt der Server trotzdem fort (graceful degradation).
+
 ---
 
 ## Erweiterung `server/sync.js` — `syncRepository()` Methode
 
-Die neue Methode `syncRepository(owner, name, ref)` im `GiteaQdrantSync`-Klasse:
+Die Methode `syncRepository(owner, name, ref)` in der `GiteaQdrantSync`-Klasse:
 
 ```js
 async syncRepository(owner, name, ref = 'main') {
@@ -361,14 +422,14 @@ Jede Phase ist ein **kalt startbarer Sub-Agent**. Keine Abhängigkeiten zwischen
 
 ### Phase 1 — Abhängigkeiten & Konfiguration
 
-**Aufgabe:** `@modelcontextprotocol/sdk` installieren, Config-Erweiterung prüfen.
+**Aufgabe:** v2-SDK-Pakete installieren, Config-Erweiterung prüfen.
 
 **Schritte:**
-1. `npm install @modelcontextprotocol/sdk zod`
-2. Prüfen, ob `config.json`/Config-Klasse neue MCP-Optionen braucht (wahrscheinlich nicht — MCP nutzt dieselben Search/Sync-Instanzen)
+1. `npm install @modelcontextprotocol/server @modelcontextprotocol/node @modelcontextprotocol/express zod`
+2. Prüfen, ob `config.json`/Config-Klasse neue MCP-Optionen braucht (`mcpEnabled`, `mcpPath`, `mcpAllowedHosts`) — wahrscheinlich nicht — MCP nutzt dieselben Search/Sync-Instanzen
 3. `package.json` Typ `module` ist bereits gesetzt ✓
 
-**Output:** `package.json` mit neuer Dependency, `package-lock.json` aktualisiert.
+**Output:** `package.json` mit neuen Dependencies, `package-lock.json` aktualisiert.
 
 ---
 
@@ -379,11 +440,11 @@ Jede Phase ist ein **kalt startbarer Sub-Agent**. Keine Abhängigkeiten zwischen
 **Schritte:**
 1. Neue Datei `server/mcp.js` erstellen
 2. `McpService` Klasse mit `constructor({ search, sync })`
-3. `init()` Methode: `McpServer` instanziieren, Tools registrieren
-4. Tool `search`: wrapper um `search.searchAndAnswer(question)`
-5. Tool `sync`: wrapper um `sync.syncRepository(owner, name, ref)`
-6. `handleSsePost()`: erstellt `SSEServerTransport`, verbindet mit McpServer
-7. `getTransport()` / `setSseEndpoint()` / `shutdown()` Helper
+3. `createServer()` Methode: `McpServer` instanziieren, Tools (`ask`, `search`, `sync`) registrieren
+4. Tool `ask`: wrapper um `search.searchAndAnswer(question)`
+5. Tool `search`: wrapper um `search.searchAndReturnChunks(question)`
+6. Tool `sync`: wrapper um `sync.syncRepository(owner, name, ref)`
+7. `init()` / `shutdown()` Helper
 8. Export der Klasse
 
 **Abhängigkeiten:** Phase 1
@@ -424,33 +485,33 @@ Jede Phase ist ein **kalt startbarer Sub-Agent**. Keine Abhängigkeiten zwischen
 
 ---
 
-### Phase 5 — `server/router.js` Erweiterung (MCP Routes)
+### Phase 5 — `server/mcpRouter.js` (McpRouter Klasse)
 
-**Aufgabe:** Zwei MCP-Endpoints in den Router integrieren.
+**Aufgabe:** Streamable-HTTP-Endpoints in den Router integrieren.
 
 **Schritte:**
-1. `McpService` als optionalen Parameter im Router-Konstruktor aufnehmen
-2. Route `POST /mcp` — Initialisierung: erkennt `initialize`-Payload, erstellt SSE-Transport, startet SSE-Stream
-3. Route `POST /mcp/message` — empfängt JSON-RPC-Nachrichten, leitet an Transport weiter
-4. Beide Routes teilen sich denselben `SSEServerTransport`-Instance
-5. Host-Validierung für MCP-Routes (DNS-Rebinding-Schutz)
+1. `McpService` als optionalen Parameter im `McpRouter`-Konstruktor aufnehmen
+2. `createMcpHandler(() => mcpService.createServer())` + `toNodeHandler` adaptieren
+3. Route `router.all(mcpPath)` für alle HTTP-Methoden des Streamable-HTTP-Transports
+4. Host-Validierung für MCP-Routes (`MCP_ALLOWED_HOSTS`, DNS-Rebinding-Schutz)
 
 **Abhängigkeiten:** Phase 2
 
-**Output:** MCP-Endpoints in `server/router.js` funktionsfähig.
+**Output:** MCP-Endpoints in `server/mcpRouter.js` funktionsfähig.
 
 ---
 
-### Phase 6 — `server/index.js` Integration & Shutdown
+### Phase 6 — `server/router.js` & `server/index.js` Integration & Shutdown
 
 **Aufgabe:** McpService im Server instanziieren, initialisieren, beim Shutdown beenden.
 
 **Schritte:**
 1. `McpService` importieren und im `Server`-Constructor instanziieren
-2. `await this.mcpService.init()` nach Router-Initialisierung
-3. `McpService`-Instance an Router weitergeben
-4. Shutdown-Handler erweitern: `await this.mcpService.shutdown()`
-5. Fehlerbehandlung: Wenn MCP-Init fehlschlägt, Server trotzdem starten (graceful degradation)
+2. `McpService`-Instance an `Router` weitergeben (`new Router(config, sync, search, httpServer, mcpService)`)
+3. `McpRouter` im `Router.define()` integrieren
+4. `await this.mcpService.init()` in `start()`
+5. Shutdown-Handler erweitern: `await this.mcpService.shutdown()`
+6. Fehlerbehandlung: Wenn MCP-Init fehlschlägt, Server trotzdem starten (graceful degradation)
 
 **Abhängigkeiten:** Phase 5
 
@@ -465,11 +526,12 @@ Jede Phase ist ein **kalt startbarer Sub-Agent**. Keine Abhängigkeiten zwischen
 **Schritte:**
 1. Server starten
 2. `curl -X POST http://localhost:3000/mcp -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'`
-3. SSE-Stream prüfen (Content-Type: text/event-stream)
+3. Response prüfen (`202 Accepted`, `Connection: upgrade`, SSE-Stream)
 4. `tools/list` Methode prüfen
-5. `tools/call` mit `search` Tool testen
+5. `tools/call` mit `ask`/`search` Tool testen
 6. `tools/call` mit `sync` Tool testen
 7. Error-Fälle testen (ungültige Inputs, nicht synchronisierte Repos)
+8. Host-Validierung testen (`MCP_ALLOWED_HOSTS`)
 
 **Abhängigkeiten:** Phase 6
 

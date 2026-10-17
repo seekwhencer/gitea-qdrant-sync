@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { QdrantClient } from '@qdrant/js-client-rest';
 
 /**
@@ -26,7 +27,7 @@ class Qdrant {
         }
         this.client = new QdrantClient(this.params);
 
-        this.client.versionInfo().then(data => console.log('[Qdrant] Version:', data));
+        this.client.versionInfo().then(data => console.log('[Qdrant] Version:', data.version));
 
     }
 
@@ -34,21 +35,34 @@ class Qdrant {
      * Upserts a single vector point with text payload into the collection.
      * Auto-creates the collection if it does not exist.
      * @param {number[]} vector - The embedding vector
-     * @param {string} chunkText - The text content
-     * @param {string} source - Source file path
-     * @param {string} repository - Repository URL
+     * @param {{text: string, source?: string, repository?: string}} meta - Point metadata (path alias = source)
      * @returns {Promise<void>}
      */
-    async upsert(vector, chunkText, source, repository) {
+    async upsert(vector, {
+        text: chunkText = '',
+        path,
+        source = '',
+        repository = '',
+        ref = '',
+        commit = ''
+    } = {}) {
+        const id = createHash('sha256').update(`${chunkText}\0${repository}`).digest('hex');
+
+        // path ist Alias für source (Kompatibilität mit searchAndReturnChunks)
+        const payloadPath = (path ?? source) || '';
+
         const payload = {
             points: [
                 {
-                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    id,
                     vector: vector,
                     payload: {
                         text: chunkText,
-                        source: source,
-                        repository: repository
+                        path: payloadPath,
+                        source: String(source) || '',
+                        repository: String(repository),
+                        ref: String(ref),
+                        commit: String(commit)
                     }
                 }
             ]
@@ -121,13 +135,22 @@ class Qdrant {
         const { result } = await this.client.collectionExists(this.collection);
         if (result) return;
 
-        await this.client.createCollection(this.collection, {
-            vectors: {
-                size: vector.length,
-                distance: 'Cosine'
-            }
-        });
-        console.log(`[Qdrant] Collection '${this.collection}' created (size=${vector.length}, distance=Cosine)`);
+        let created = false;
+        try {
+            await this.client.createCollection(this.collection, {
+                vectors: { size: vector.length, distance: 'Cosine' }
+            });
+            created = true;
+        } catch (err) {
+            const alreadyExists =
+                err?.status === 409 ||
+                String(err?.message ?? '').toLowerCase().includes('already exists');
+            if (!alreadyExists) throw err;
+        }
+
+        if (created) {
+            console.log(`[Qdrant] Collection '${this.collection}' created (size=${vector.length}, distance=Cosine)`);
+        }
     }
 }
 
