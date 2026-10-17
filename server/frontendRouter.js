@@ -30,21 +30,29 @@ class FrontendRouter {
         this.uiDir = this.config?.uiDir || 'frontend';
         this.buildDir = this.config?.uiBuildDir || 'frontend/dist';
         this.viteServer = null;
-
-        this.define();
-
-        return this.router;
     }
 
     /**
-     * Sets up frontend routes: Vite dev server in development mode, static files in production mode.
+     * Initializes the frontend router: Vite dev server in development mode, static files in production mode.
+     * @returns {Promise<void>}
      */
-    async define() {
-        
+    async init() {
+
         if (process.env.NODE_ENV === 'development') {
             this.viteServer = await this.getViteServer();
             if (this.viteServer) {
                 this.router.use(this.viteServer.middlewares);
+                this.router.get('/', async (req, res) => {
+                    const indexPath = path.resolve(__dirname, '..', this.uiDir, 'index.html');
+                    let html = fs.readFileSync(indexPath, 'utf-8');
+                    html = await this.viteServer.transformIndexHtml(req.url, html);
+                    res.send(html);
+                });
+            } else {
+                this.router.get('/', (req, res) => {
+                    const indexPath = path.resolve(__dirname, '..', this.uiDir, 'index.html');
+                    res.sendFile(indexPath);
+                });
             }
         } else {
             this.router.use(express.static(this.buildDir));
@@ -53,19 +61,6 @@ class FrontendRouter {
             });
         }
 
-        this.router.get('/', (req, res) => {
-            const targetDir = process.env.NODE_ENV === 'development' ? this.uiDir : this.buildDir;
-            const indexPath = path.resolve(__dirname, '..', targetDir, 'index.html');
-            if (this.viteServer && this.viteServer.transformIndexHtml) {
-                fs.promises.readFile(indexPath, 'utf-8')
-                    .then((html) => this.viteServer.transformIndexHtml(req.url, html))
-                    .then((transformed) => res.type('html').send(transformed))
-                    .catch(() => res.sendFile(indexPath));
-            } else {
-                res.sendFile(indexPath);
-            }
-        });
-        
     }
 
     /**

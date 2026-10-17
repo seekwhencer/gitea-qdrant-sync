@@ -24,20 +24,18 @@ class Router {
 
         this.router = express.Router();
         this.router.use(express.json());
-
-        this.define();
-
-        return this.router;
     }
 
     /**
      * Defines all routes: frontend, health, webhook, search, and MCP.
+     * @returns {Promise<void>}
      */
-    define() {
+    async define() {
 
         //
         const frontendRouter = new FrontendRouter(this.config, this.sync, this.search, this.httpServer);
-        this.router.use('/', frontendRouter);
+        await frontendRouter.init();
+        this.router.use('/', frontendRouter.router);
 
         //
         this.router.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));

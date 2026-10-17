@@ -11,6 +11,15 @@ export default defineConfig({
   server: {
     middlewareMode: true,
     allowedHosts: true,
+    configure(server) {
+      server.middlewares.use((req, res, next) => {
+        res.setHeader(
+          'Content-Security-Policy',
+          "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        );
+        next();
+      });
+    },
     ws: {
       host: 'sync.gitea.home',
       port: 80,

@@ -91,14 +91,15 @@ The environment variables take precedence over `config.json`. In Docker they are
 The older `LLM_URL`, `LLM_API` and `MODEL_NAME` variables are still supported as
 fallbacks for `EMBEDDINGS_URL`, `EMBEDDINGS_API` and `EMBEDDINGS_MODEL`.
 
-Without `config.json`, a sheet of default values is created at the
-`CONFIG_PATH` location on startup.
+Default values are applied in memory when `config.json` is absent. The file is
+not written automatically; call `Config.saveDefaults()` to write a sample
+`config.json` to the `CONFIG_PATH` location.
 
 ## MCP (Model Context Protocol)
 
 The service exposes an MCP server at `/mcp` (configurable via `MCP_PATH`).
 Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
-The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability with `listChanged`.
+The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability.
 
 ### Architecture
 
@@ -220,6 +221,14 @@ Accepts a JSON body with a `question` field and returns `{ "answer": "..." }`
 based on the synchronized documentation. Returns `404` if no answer could be
 generated.
 
+### `POST /search/stream`
+
+Streams the RAG answer as Server-Sent Events. Accepts a JSON body with a
+`question` field. Yields events of type `status` (embedding/search/thinking
+phases), `thinking` (reasoning tokens), `answer` (content tokens), `empty`
+(no results), `done` (completion), and `error`. Useful for displaying
+progressive answers in the frontend.
+
 ### `GET /health`
 
 Returns the service status: `{ "status": "ok" }`.
@@ -243,8 +252,9 @@ default `nomic-embed-text`), the chat model (`chatModel`), the Qdrant collection
 (`qdrantCollection`, default `research`) and the maximum chunk size
 (`qdrantChunkMaxSize`, default `768` characters per chunk) can be changed. The
 chunking uses a recursive Markdown splitter in `server/sync.js`. The point ID
-generation in `server/qdrant.js` (`upsert`) uses a timestamp plus random id; adjust
-this if a deduplicated or content-stable synchronization is required.
+generation in `server/qdrant.js` (`upsert`) uses a SHA-256 hash of the chunk text
+and repository URL, making it content-stable and idempotent: re-syncing the same
+file replaces existing points rather than duplicating them.
 
 ## Project structure
 
