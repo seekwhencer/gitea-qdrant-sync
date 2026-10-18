@@ -17,12 +17,15 @@ class FrontendRouter {
      * @param {GiteaQdrantSync} sync - Sync service
      * @param {Search} search - Search service
      * @param {import('node:http').Server} httpServer - HTTP server instance
+     * @param {Logger} [logger] - Logger instance
      */
-    constructor(config, sync, search, httpServer) {
+    constructor(config, sync, search, httpServer, logger) {
         this.config = config;
         this.sync = sync;
         this.search = search;
         this.httpServer = httpServer;
+        this.label = '[FrontendRouter]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         this.router = express.Router();
         this.router.use(express.json());

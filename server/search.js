@@ -1,5 +1,6 @@
 import { Qdrant } from './qdrant.js';
 import { Llm } from './llm.js';
+import { Config } from './config.js';
 
 /**
  * Performs semantic search on vectors stored in Qdrant and generates LLM-based answers (RAG).
@@ -18,7 +19,9 @@ class Search {
      * @param {string} [params.chatApi] - Chat API (ollama/openapi)
      * @param {string} [params.chatUrl] - Chat server URL
      * @param {string} [params.chatModel] - Chat model name
+     * @param {string} [params.systemPrompt] - System prompt for the LLM
      * @param {number} [params.topK=20] - Number of returned results
+     * @param {Logger} [params.logger] - Logger instance
      */
     constructor({
         qdrant,
@@ -32,14 +35,20 @@ class Search {
         chatApi,
         chatUrl,
         chatModel,
-        topK = 9999
+        systemPrompt,
+        topK = 9999,
+        logger
     } = {}) {
         this.qdrantCollection = qdrantCollection;
         this.topK = topK;
-        this.qdrant = qdrant || new Qdrant({ url: qdrantUrl, port: qdrantPort, collection: qdrantCollection });
+        this.systemPrompt = systemPrompt || new Config().llmSystemPrompt;
+        this.label = '[Search]';
+        this.logger = logger || { log: () => {}, error: () => {} };
+        this.qdrant = qdrant || new Qdrant({ url: qdrantUrl, port: qdrantPort, collection: qdrantCollection, logger: this.logger });
         this.llm = llm || new Llm({
             embeddingsApi, embeddingsUrl, embeddingsModel,
-            chatApi, chatUrl, chatModel
+            chatApi, chatUrl, chatModel,
+            logger: this.logger
         });
     }
 
@@ -50,16 +59,16 @@ class Search {
      */
     async searchAndAnswer(question) {
         try {
-            console.log(`[Search] Generating embedding for: "${question}"...`);
+            this.logger.log(this.label,`Generating embedding for: "${question}"...`);
             const queryVector = await this.llm.embed(question);
 
-            console.log('[Search] query vector:', queryVector, this.topK);
+            this.logger.log(this.label, 'query vector:', queryVector, this.topK);
 
-            console.log('[Search] Searching in Qdrant...');
+            this.logger.log(this.label, 'Searching in Qdrant...');
             const results = await this.qdrant.search(queryVector, this.topK);
 
             if (!results || results.length === 0) {
-                console.log('[Search] No matching documents found.');
+                this.logger.log(this.label, 'No matching documents found.');
                 return;
             }
 
@@ -69,12 +78,12 @@ class Search {
 
             const context = contextTexts.join('\n\n---\n\n');
 
-            console.log(`[Search] Found ${results.length} relevant documents. Generating answer...`);
+            this.logger.log(this.label,`Found ${results.length} relevant documents. Generating answer...`);
 
             const messages = [
                 {
                     role: 'system',
-                    content: `You are a helpful research assistant. Answer in markdown format the user's question precisely and full, based solely on the following context:\n\n${context}`
+                    content: `${this.systemPrompt}\n\n${context}`
                 },
                 {
                     role: 'user',
@@ -84,13 +93,13 @@ class Search {
 
             const answer = await this.llm.chat(messages);
 
-            console.log('\n--- ANSWER ---');
-            console.log(answer);
-            console.log('---------------\n');
+            this.logger.log(this.label, '\n--- ANSWER ---');
+            this.logger.log(this.label,answer);
+            this.logger.log(this.label, '---------------\n');
 
             return answer;
         } catch (err) {
-            console.error('[Error]', err);
+            this.logger.error(this.label, '[Error]', err);
         }
     }
 
@@ -121,7 +130,7 @@ class Search {
         const messages = [
             {
                 role: 'system',
-                content: `You are a helpful research assistant. Answer the user's question precisely based solely on the following context:\n\n${context}`
+                content: `${this.systemPrompt}\n\n${context}`
             },
             {
                 role: 'user',
@@ -143,14 +152,14 @@ class Search {
      */
     async searchAndReturnChunks(question) {
         try {
-            console.log(`[Search] Generating embedding for: "${question}"...`);
+            this.logger.log(this.label,`Generating embedding for: "${question}"...`);
             const queryVector = await this.llm.embed(question);
 
-            console.log('[Search] Searching in Qdrant...');
+            this.logger.log(this.label, 'Searching in Qdrant...');
             const results = await this.qdrant.search(queryVector, this.topK);
 
             if (!results || results.length === 0) {
-                console.log('[Search] No matching documents found.');
+                this.logger.log(this.label, 'No matching documents found.');
                 return [];
             }
 
@@ -164,10 +173,10 @@ class Search {
                 }
             }));
 
-            console.log(`[Search] Found ${chunks.length} relevant documents.`);
+            this.logger.log(this.label,`Found ${chunks.length} relevant documents.`);
             return chunks;
         } catch (err) {
-            console.error('[Error]', err);
+            this.logger.error(this.label, '[Error]', err);
             return [];
         }
     }

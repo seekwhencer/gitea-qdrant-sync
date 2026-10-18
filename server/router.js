@@ -14,13 +14,16 @@ class Router {
      * @param {Search} search - Search service
      * @param {import('node:http').Server} httpServer - HTTP server instance
      * @param {McpService} mcpService - MCP service
+     * @param {Logger} [logger] - Logger instance
      */
-    constructor(config, sync, search, httpServer, mcpService) {
+    constructor(config, sync, search, httpServer, mcpService, logger) {
         this.sync = sync;
         this.search = search;
         this.config = config;
         this.mcpService = mcpService;
         this.httpServer = httpServer;
+        this.label = '[Router]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         this.router = express.Router();
         this.router.use(express.json());
@@ -33,7 +36,7 @@ class Router {
     async define() {
 
         //
-        const frontendRouter = new FrontendRouter(this.config, this.sync, this.search, this.httpServer);
+        const frontendRouter = new FrontendRouter(this.config, this.sync, this.search, this.httpServer, this.logger);
         await frontendRouter.init();
         this.router.use('/', frontendRouter.router);
 
@@ -50,7 +53,7 @@ class Router {
                 await this.sync.handlePushEvent(req.body);
                 res.status(200).send('Sync completed successfully.');
             } catch (error) {
-                console.error('Error processing webhook:', error);
+                this.logger.error(this.label, 'Error processing webhook:', error);
                 res.status(500).send('Internal Server Error');
             }
         });
@@ -61,7 +64,7 @@ class Router {
                 const result = await this.sync.syncAllRepositories();
                 res.status(202).json(result);
             } catch (error) {
-                console.error('Error triggering sync-all:', error);
+                this.logger.error(this.label, 'Error triggering sync-all:', error);
                 res.status(500).json({ error: 'Internal Server Error', message: error.message });
             }
         });
@@ -80,7 +83,7 @@ class Router {
                 }
                 res.status(200).json({ answer });
             } catch (error) {
-                console.error('Error processing search:', error);
+                this.logger.error(this.label, 'Error processing search:', error);
                 res.status(500).send('Internal Server Error');
             }
         });
@@ -128,7 +131,7 @@ class Router {
                 }
             } catch (err) {
                 if (err && err.name === 'AbortError') return;
-                console.error('[Error] streaming search:', err);
+                this.logger.error(this.label, '[Error] streaming search:', err);
                 send('error', { message: err?.message || 'Streaming fehlgeschlagen' });
             } finally {
                 if (!res.writableEnded) res.end();
@@ -136,7 +139,7 @@ class Router {
         });
 
         //
-        const mcpRouter = new McpRouter(this.config, this.mcpService);
+        const mcpRouter = new McpRouter(this.config, this.mcpService, this.logger);
         this.router.use('/', mcpRouter);
 
     }

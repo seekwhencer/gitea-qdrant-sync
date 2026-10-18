@@ -13,6 +13,7 @@ class Llm {
      * @param {string} [params.chatApi='ollama'] - Chat API backend
      * @param {string} [params.chatUrl=''] - Chat server base URL
      * @param {string} [params.chatModel=''] - Chat model name
+     * @param {Logger} [params.logger] - Logger instance
      */
     constructor({
         embeddingsApi = 'ollama',
@@ -20,7 +21,8 @@ class Llm {
         embeddingsModel = '',
         chatApi = 'ollama',
         chatUrl = '',
-        chatModel = ''
+        chatModel = '',
+        logger
     } = {}) {
         this.embeddingsConfig = {
             api: (embeddingsApi === 'openapi') ? 'openapi' : 'ollama',
@@ -36,6 +38,8 @@ class Llm {
         // Cache for embeddings keyed by SHA-256 of the chunk text.
         // Avoids redundant LLM calls when identical chunks are re-synced within a session/process.
         this._embeddingCache = new Map();
+        this.label = '[Embed]';
+        this.logger = logger || { log: () => {}, error: () => {} };
     }
 
     /**
@@ -96,7 +100,7 @@ class Llm {
             this._embeddingCache.set(key, vector);
             return vector;
         } catch (error) {
-            console.error(`[Embed] Failed to generate embedding for chunk:`, error);
+            this.logger.error(this.label,`Failed to generate embedding for chunk:`, error);
             throw error;
         }
     }

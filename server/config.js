@@ -25,12 +25,16 @@ class Config {
         giteaToken: '',
         mcpEnabled: true,
         mcpPath: '/mcp',
-        mcpAllowedHosts: ''
+        mcpAllowedHosts: '',
+        llmSystemPrompt: 'You are a helpful research assistant. Answer in markdown format the user\'s question precisely and full, based solely on the following context:',
+        verbose: false
     };
 
-    constructor(env = process.env) {
+    constructor(env = process.env, logger) {
         this.env = env;
         this.configPath = this.resolvePath();
+        this.label = '[Config]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         const loadedDefaults =
             existsSync(this.configPath)
@@ -55,6 +59,7 @@ class Config {
         this.mcpEnabled = env.MCP_ENABLED !== 'false' && this.defaults.mcpEnabled;
         this.mcpPath = env.MCP_PATH || this.defaults.mcpPath;
         this.mcpAllowedHosts = env.MCP_ALLOWED_HOSTS || this.defaults.mcpAllowedHosts;
+        this.verbose = env.VERBOSE === 'true' || this.defaults.verbose;
     }
 
     /**
@@ -86,7 +91,9 @@ class Config {
             qdrantChunkMaxSize: parseInt(this.env.QDRANT_CHUNK_MAX_SIZE, 10) || Config.defaults.qdrantChunkMaxSize,
             mcpEnabled: this.env.MCP_ENABLED !== 'false' || Config.defaults.mcpEnabled,
             mcpPath: this.env.MCP_PATH || Config.defaults.mcpPath,
-            mcpAllowedHosts: this.env.MCP_ALLOWED_HOSTS || Config.defaults.mcpAllowedHosts
+            mcpAllowedHosts: this.env.MCP_ALLOWED_HOSTS || Config.defaults.mcpAllowedHosts,
+            llmSystemPrompt: this.env.LLM_SYSTEM_PROMPT || Config.defaults.llmSystemPrompt,
+            verbose: this.env.VERBOSE === 'true' || Config.defaults.verbose
         };
     }
 

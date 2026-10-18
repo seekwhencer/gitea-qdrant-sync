@@ -8,13 +8,17 @@ class Gitea {
      * @param {object} params - Configuration parameters
      * @param {string} [params.url=''] - Gitea API base URL
      * @param {string} [params.token=''] - Gitea API token
+     * @param {Logger} [params.logger] - Logger instance
      */
     constructor({
         url = '',
-        token = ''
+        token = '',
+        logger
     } = {}) {
         this.url = url;
         this.token = token;
+        this.label = '[Gitea]';
+        this.logger = logger || { log: () => {}, error: () => {} };
     }
 
     /**
@@ -35,7 +39,7 @@ class Gitea {
         } catch (error) {
             const status = error.response?.status;
             const message = error.response?.data?.message || error.message;
-            console.error(`[Gitea] Failed to fetch ${filePath} (ref ${ref}) from ${repository.owner.username}/${repository.name}: HTTP ${status} - ${message}`);
+            this.logger.error(this.label,`Failed to fetch ${filePath} (ref ${ref}) from ${repository.owner.username}/${repository.name}: HTTP ${status} - ${message}`);
             throw new Error(`Failed to fetch file ${filePath}: HTTP ${status} - ${message}`);
         }
     }
@@ -112,7 +116,7 @@ class Gitea {
         } catch (error) {
             const status = error.response?.status;
             if (status === 404) return;
-            console.error(`[Gitea] Failed to list tree ${path} in ${owner}/${name}: HTTP ${status}`);
+            this.logger.error(this.label,`Failed to list tree ${path} in ${owner}/${name}: HTTP ${status}`);
             throw error;
         }
     }

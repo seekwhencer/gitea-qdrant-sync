@@ -12,11 +12,14 @@ export class Server {
      * @param {object} config - Configuration object
      * @param {GiteaQdrantSync} sync - Sync service
      * @param {Search} search - Search service
+     * @param {Logger} [logger] - Logger instance
      */
-    constructor(config, sync, search) {
+    constructor(config, sync, search, logger) {
         this.config = config;
         this.sync = sync;
         this.search = search;
+        this.label = '[Server]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         // create
         this.app = express();
@@ -34,7 +37,7 @@ export class Server {
         });
 
         // MCP service
-        this.mcpService = new McpService({ search: this.search, sync: this.sync });
+        this.mcpService = new McpService({ search: this.search, sync: this.sync, logger: this.logger });
     }
 
     /**
@@ -45,13 +48,13 @@ export class Server {
     async start() {
         try {
             await this.mcpService.init();
-            console.log('[MCP] Server initialized');
+            this.logger.log(this.label, '[MCP] Server initialized');
         } catch (error) {
-            console.error('[MCP] Initialization failed, continuing without MCP:', error.message);
+            this.logger.error(this.label, '[MCP] Initialization failed, continuing without MCP:', error.message);
         }
 
         // append the routes
-        this.router = new Router(this.config, this.sync, this.search, this.httpServer, this.mcpService);
+        this.router = new Router(this.config, this.sync, this.search, this.httpServer, this.mcpService, this.logger);
         await this.router.define();
         this.app.use(this.router.router);
 
@@ -62,20 +65,20 @@ export class Server {
 
         // 500 
         this.app.use((error, req, res, next) => {
-            console.error('Unhandled error', { error: error.message });
+            this.logger.error(this.label, 'Unhandled error', { error: error.message });
             res.status(500).json({ error: 'Internal server error', code: 'internal_error' });
         });
 
         this.httpServer.listen(this.config.serverPort, () => {
-            console.log(`Gitea-Qdrant-Sync running on port ${this.config.serverPort}`);
+            this.logger.log(this.label,`Gitea-Qdrant-Sync running on port ${this.config.serverPort}`);
         });
 
         const shutdown = async () => {
-            console.log('Shutting down...');
+            this.logger.log(this.label, 'Shutting down...');
             try {
                 await this.mcpService.shutdown();
             } catch (e) {
-                console.error('[MCP] Shutdown error:', e.message);
+                this.logger.error(this.label, '[MCP] Shutdown error:', e.message);
             }
             this.httpServer.close(() => process.exit(0));
         };
@@ -84,7 +87,7 @@ export class Server {
 
         // something goes wrong ;)
         process.on('unhandledRejection', (reason) => {
-            console.error('Unhandled Rejection', { reason: reason?.message, ...reason });
+            this.logger.error(this.label, 'Unhandled Rejection', { reason: reason?.message, ...reason });
         });
     }
 

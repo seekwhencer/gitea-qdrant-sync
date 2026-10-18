@@ -9,11 +9,14 @@ class McpService {
      * @param {object} params - Service dependencies
      * @param {Search} params.search - Search service
      * @param {GiteaQdrantSync} params.sync - Sync service
+     * @param {Logger} [params.logger] - Logger instance
      */
-    constructor({ search, sync }) {
+    constructor({ search, sync, logger }) {
         this.search = search;
         this.sync = sync;
         this.mcpServer = null;
+        this.label = '[MCP]';
+        this.logger = logger || { log: () => {}, error: () => {} };
     }
 
     /**
@@ -21,7 +24,7 @@ class McpService {
      * @returns {Promise<void>}
      */
     init() {
-        console.log('[MCP] Service initialized (v2 class pattern)');
+        this.logger.log(this.label, 'Service initialized (v2 class pattern)');
         return Promise.resolve();
     }
 

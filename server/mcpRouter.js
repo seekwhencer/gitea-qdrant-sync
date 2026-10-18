@@ -9,10 +9,13 @@ class McpRouter {
     /**
      * @param {Config} config - Configuration object
      * @param {McpService} mcpService - MCP service
+     * @param {Logger} [logger] - Logger instance
      */
-    constructor(config, mcpService) {
+    constructor(config, mcpService, logger) {
         this.config = config;
         this.mcpService = mcpService;
+        this.label = '[McpRouter]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         this.router = express.Router();
 

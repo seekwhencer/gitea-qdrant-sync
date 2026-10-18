@@ -10,15 +10,19 @@ class Qdrant {
      * @param {string} params.url - Qdrant server URL
      * @param {number} [params.port=80] - Qdrant port
      * @param {string} [params.collection='research'] - Collection name
+     * @param {Logger} [params.logger] - Logger instance
      */
     constructor({
         url,
         port = 80,
-        collection = 'research'
+        collection = 'research',
+        logger
     } = {}) {
         this.url = url;
         this.port = port;
         this.collection = collection;
+        this.label = '[Qdrant]';
+        this.logger = logger || { log: () => {}, error: () => {} };
 
         this.params = {
             url: url,
@@ -27,7 +31,7 @@ class Qdrant {
         };
         this.client = new QdrantClient(this.params);
 
-        this.client.versionInfo().then(data => console.log('[Qdrant] Version:', data.version));
+        this.client.versionInfo().then(data => this.logger.log(this.label, 'Version:', data.version));
 
     }
 
@@ -149,7 +153,7 @@ class Qdrant {
         }
 
         if (created) {
-            console.log(`[Qdrant] Collection '${this.collection}' created (size=${vector.length}, distance=Cosine)`);
+            this.logger.log(this.label, `Collection '${this.collection}' created (size=${vector.length}, distance=Cosine)`);
         }
     }
 }
