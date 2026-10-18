@@ -102,17 +102,12 @@ not written automatically; call `Config.saveDefaults()` to write a sample
 
 ## MCP (Model Context Protocol)
 
-The service exposes an MCP server at `/mcp` (configurable via `MCP_PATH`).
-Connect any MCP-compatible client (Claude Code, Cursor, etc.) to `http://<host>:<port>/mcp`.
-The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability.
-
-### Architecture
-
-Built with MCP TypeScript SDK v2 using a stateless per-request factory pattern:
-- `createMcpHandler()` creates a handler from a factory function
-- `toNodeHandler()` adapts the handler for Express
-- Each request gets a fresh `McpServer` instance via `McpService.createServer()`
-- No shared transport state — scales horizontally without session management
+- The service exposes an MCP server at `/mcp` (configurable via `MCP_PATH`).
+- Connect any MCP-compatible client (Claude Code, Cursor, etc.) to 
+  ```bash
+  http://<host>:<port>/mcp
+  ```
+- The server identifies as `gitea-qdrant-sync v1.0.0` and advertises `tools` capability.
 
 ### Tools
 
@@ -159,6 +154,16 @@ curl -X POST http://localhost:3000/mcp \
 
 Each request is stateless — no session management required.
 
+
+### Architecture
+
+Built with MCP TypeScript SDK v2 using a stateless per-request factory pattern:
+- `createMcpHandler()` creates a handler from a factory function
+- `toNodeHandler()` adapts the handler for Express
+- Each request gets a fresh `McpServer` instance via `McpService.createServer()`
+- No shared transport state — scales horizontally without session management
+
+
 ### Configuration
 
 | Variable              | Description                                                                                                             |
@@ -174,21 +179,34 @@ When `MCP_ALLOWED_HOSTS` is set, requests with a `Host` header not in the list a
 ### Local start
 
 ```bash
+# install
 npm install
-SERVER_PORT=3000 QDRANT_URL=http://localhost:6333 QDRANT_PORT=6333 QDRANT_COLLECTION=research QDRANT_CHUNK_MAX_SIZE=768 \
-EMBEDDINGS_API=ollama EMBEDDINGS_URL=http://localhost:11434 EMBEDDINGS_MODEL=nomic-embed-text-v2-moe:latest \
-CHAT_API=ollama CHAT_URL=http://localhost:11434 CHAT_MODEL=loaded \
-GITEA_API_URL=https://gitea.example.com GITEA_TOKEN=your-token node index.js
+
+# run
+SERVER_PORT=3000 \
+QDRANT_URL=http://localhost:6333 \
+QDRANT_PORT=6333 \
+QDRANT_COLLECTION=research \
+QDRANT_CHUNK_MAX_SIZE=768 \
+EMBEDDINGS_API=ollama \
+EMBEDDINGS_URL=http://localhost:11434 \
+EMBEDDINGS_MODEL=nomic-embed-text-v2-moe:latest \
+CHAT_API=ollama \
+CHAT_URL=http://localhost:11434 \
+CHAT_MODEL=loaded \
+GITEA_API_URL=https://gitea.example.com \
+GITEA_TOKEN=your-token \
+node index.js
 ```
 
 ### Frontend
 
-The service ships a small Vite + React (19) web UI in `frontend/` that answers
-questions against the synchronized documentation via `POST /search`. It uses
-`@tanstack/react-query` for data fetching, `react-router-dom` for routing and
-hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
-The UI also includes a "Gitea Re-Sync" button that triggers a background
-re-sync of all repositories via `POST /sync-all`.
+- The service ships a small Vite + React (19) web UI in `frontend/` that answers
+  questions against the synchronized documentation via `POST /search`. 
+- It uses `@tanstack/react-query` for data fetching, `react-router-dom` for routing and
+  hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
+- The UI also includes a "Gitea Re-Sync" button that triggers a background
+  re-sync of all repositories via `POST /sync-all`.
 
 The Express server serves the UI transparently: in development it runs the Vite
 dev server as middleware (hot reload), in production it serves the built files

@@ -10,7 +10,10 @@ export default function ThinkBlock({ content }) {
       <button
         type="button"
         className={`thinking ${expanded ? 'thinking--expanded' : ''}`}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
         aria-expanded={expanded}
       >
         <span className="thinking__label">
