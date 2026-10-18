@@ -10,9 +10,14 @@ endpoint, which retrieves relevant chunks and generates an answer with a chat LL
 The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context
 Protocol) server over [Streamable HTTP](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp`, exposing `search` and `sync` tools for use
 by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
-Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net)
 
-Used local llm on 32G VRAM with llama.cpp and Tiel Coder 35B A3B MTP UD Q4_K_XL
+Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net) 
+Using a local LLM:
+ - llama.cpp
+ - opencode / kilo code
+ - VS Code + kilo code extension
+ - Tiel Coder 35B A3B MTP UD Q4_K_XL
+ - NVIDIA Nemotron 3.5 Bolt 74B A9B 24GB GGUF 
 
 ## Prerequisites
 
@@ -111,11 +116,12 @@ Built with MCP TypeScript SDK v2 using a stateless per-request factory pattern:
 
 ### Tools
 
-| Tool     | Description                                                                                              |
-| -------- | -------------------------------------------------------------------------------------------------------- |
-| `ask`    | Answers a question using RAG (vector search in Qdrant + chat LLM). Takes a `question` string argument.  |
-| `search` | Searches the synchronized documentation with vector search in Qdrant. Returns raw chunks with scores and metadata. Takes a `question` string argument. |
-| `sync`   | Triggers a full sync of all Markdown files in a Gitea repository. Takes `repository` (`owner/repo`) and optional `ref` arguments. |
+| Tool      | Description                                                                                              |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `ask`     | Answers a question using RAG (vector search in Qdrant + chat LLM). Takes a `question` string argument.  |
+| `search`  | Searches the synchronized documentation with vector search in Qdrant. Returns raw chunks with scores and metadata. Takes a `question` string argument. |
+| `sync`    | Triggers a full sync of all Markdown files in a Gitea repository. Takes `repository` (`owner/repo`) and optional `ref` arguments. |
+| `sync-all`| Synchronizes all Markdown files of all Gitea repositories known to Qdrant. Runs in the background. Takes no arguments. |
 
 ### Example usage
 
@@ -144,6 +150,11 @@ curl -X POST http://localhost:3000/mcp \
 curl -X POST http://localhost:3000/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"sync","arguments":{"repository":"myorg/myrepo","ref":"main"}}}'
+
+# Sync all repositories known to Qdrant
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"sync-all","arguments":{}}}'
 ```
 
 Each request is stateless — no session management required.
@@ -176,6 +187,8 @@ The service ships a small Vite + React (19) web UI in `frontend/` that answers
 questions against the synchronized documentation via `POST /search`. It uses
 `@tanstack/react-query` for data fetching, `react-router-dom` for routing and
 hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
+The UI also includes a "Gitea Re-Sync" button that triggers a background
+re-sync of all repositories via `POST /sync-all`.
 
 The Express server serves the UI transparently: in development it runs the Vite
 dev server as middleware (hot reload), in production it serves the built files
@@ -229,6 +242,12 @@ phases), `thinking` (reasoning tokens), `answer` (content tokens), `empty`
 (no results), `done` (completion), and `error`. Useful for displaying
 progressive answers in the frontend.
 
+### `POST /sync-all`
+
+Triggers a background re-sync of all Markdown files of all Gitea repositories
+known to Qdrant. Returns `{ "status": "started", "message": "..." }` with
+HTTP 202. The frontend shows a "Gitea Re-Sync" button that calls this endpoint.
+
 ### `GET /health`
 
 Returns the service status: `{ "status": "ok" }`.
@@ -270,9 +289,10 @@ file replaces existing points rather than duplicating them.
 │   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
 │   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
 │   ├── qdrant.js            # Qdrant client: upsert, search, delete points
-│   ├── mcp.js               # MCP service class: creates McpServer instances with ask/search/sync tools
+│   ├── mcp.js               # MCP service class: creates McpServer instances with ask/search/sync/sync-all tools
 │   ├── mcpRouter.js         # MCP routes: createMcpHandler + toNodeHandler for Streamable HTTP
-│   └── config.js            # Config loader (env + config.json)
+│   ├── config.js            # Config loader (env + config.json)
+│   └── logger.js            # Simple logger wrapper used across services
 ├── frontend/                # Vite + React (19) search UI for POST /search
 │   ├── index.html
 │   ├── vite.config.js
