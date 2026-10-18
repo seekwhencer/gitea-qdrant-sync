@@ -19,7 +19,7 @@ function formatTs(ts) {
   return new Date(ts).toLocaleString('en-US');
 }
 
-export default function Conversation({ items, onSelect }) {
+export default function Conversation({ items, onSelect, onRemove }) {
   if (!items || items.length === 0) {
     return <p className="conversation__empty">No questions yet.</p>;
   }
@@ -27,13 +27,13 @@ export default function Conversation({ items, onSelect }) {
   return (
     <ul className="conversation">
       {items.map((item) => (
-        <HistoryItem key={item.id} item={item} onSelect={onSelect} />
+        <HistoryItem key={item.id} item={item} onSelect={onSelect} onRemove={onRemove} />
       ))}
     </ul>
   );
 }
 
-function HistoryItem({ item, onSelect }) {
+function HistoryItem({ item, onSelect, onRemove }) {
   return (
     <li
       className={`conversation__item${item.error ? ' conversation__item--error' : ''}${item.pending ? ' conversation__item--pending' : ''}`}
@@ -54,6 +54,19 @@ function HistoryItem({ item, onSelect }) {
             >
               {formatTs(item.ts)}
             </time>
+          )}
+          {onRemove && (
+            <button
+              className="conversation__delete"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(item.id);
+              }}
+              aria-label="Delete history item"
+            >
+              ×
+            </button>
           )}
         </div>
       </div>

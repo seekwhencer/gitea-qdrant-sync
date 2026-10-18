@@ -66,6 +66,18 @@ export function useConversation() {
     });
   }, []);
 
+  const remove = useCallback((id) => {
+    setItems((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch (_) {}
+
+      return next;
+    });
+  }, []);
+
   const clear = useCallback(() => {
     setItems([]);
     try {
@@ -73,5 +85,5 @@ export function useConversation() {
     } catch (_) {}
   }, []);
 
-  return { items, add, update, clear };
+  return { items, add, update, remove, clear };
 }

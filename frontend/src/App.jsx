@@ -8,7 +8,7 @@ import { useConversation } from './hooks/useConversation';
 
 export default function App() {
   const { thinking, answer, question, statusMessage, pending, error, done, run } = useSearchStream();
-  const { items, add, update, clear } = useConversation();
+  const { items, add, update, remove, clear } = useConversation();
   const [activeItemId, setActiveItemId] = useState(null);
   const [currentSearchItemId, setCurrentSearchItemId] = useState(null);
 
@@ -39,6 +39,10 @@ export default function App() {
     setActiveItemId(item.id === currentSearchItemId ? null : item.id);
   };
 
+  const handleRemove = (id) => {
+    remove(id);
+  };
+
   const activeItem = activeItemId ? items.find((i) => i.id === activeItemId) : null;
   const isLive = !activeItemId;
 
@@ -62,7 +66,7 @@ export default function App() {
               </button>
             )}
           </div>
-          <Conversation items={items} onSelect={handleSelect} />
+          <Conversation items={items} onSelect={handleSelect} onRemove={handleRemove} />
         </section>
         <section className="app__primary">
           <SearchBar onSubmit={handleSubmit} pending={pending} />
