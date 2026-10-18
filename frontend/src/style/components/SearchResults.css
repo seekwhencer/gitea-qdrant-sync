@@ -17,7 +17,7 @@
   background: var(--color-surface);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-lg);
-  font-size: 0.95rem;
+  font-size: var(--fs-md);
   width: 100%;
 }
 
@@ -102,7 +102,7 @@
 .search-results__title {
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -115,7 +115,7 @@
   font-family: var(--font-mono);
   margin: 0 0 var(--space-4) 0;
   padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xl); 
   font-weight: 600;
   color: var(--color-text);
   background: var(--color-surface-alt);
@@ -203,28 +203,28 @@
 }
 
 .markdown h1 {
-  font-size: 1.5rem;
+  font-size: var(--fs-2xl);
 }
 
 .markdown h2 {
-  font-size: 1.25rem;
+  font-size: var(--fs-xl);
 }
 
 .markdown h3 {
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   font-weight: 500;
 }
 
 .markdown h4 {
-  font-size: 1rem;
+  font-size: var(--fs-md);
 }
 
 .markdown h5 {
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
 
 .markdown h6 {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--color-text-secondary);
 }
 
@@ -277,7 +277,7 @@
 
 .markdown code {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   background: var(--color-surface-alt);
   padding: 0.15em 0.6em;
   border-radius: var(--radius-sm);
@@ -295,7 +295,7 @@
 
 .markdown pre code {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   background: none;
 }
 
@@ -320,7 +320,7 @@
   width: 100%;
   margin-bottom: var(--space-3);
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
 }
 
 .markdown th,
@@ -361,7 +361,7 @@
   gap: var(--space-2);
   margin: 0 0 var(--space-3) 0;
   padding: var(--space-2) var(--space-3);
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   font-family: inherit;
   color: var(--color-text-secondary);
@@ -408,7 +408,7 @@
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -427,7 +427,7 @@
   border-left: 3px solid currentColor;
   background: var(--color-error-subtle);
   color: var(--color-error);
-  font-size: 0.95rem;
+  font-size: var(--fs-md);
 }
 
 .search-results--validation .search-results__error {
