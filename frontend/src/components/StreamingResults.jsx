@@ -62,18 +62,26 @@ export default function StreamingResults({ thinking, answer, question, statusMes
     );
   }
 
+  if (answer || thinking) {
+    return (
+      <section className="search-results search-results--success" aria-live="polite">
+        <h2 className="search-results__title">Result</h2>
+        {question && <p className="search-results__question">{question}</p>}
+        <div className="search-results__answer">
+          {thinking && <ThinkBlock content={thinking} />}
+          {answer ? (
+            <MarkdownRenderer text={answer} />
+          ) : streaming ? (
+            <span className="answer__cursor" aria-hidden="true" />
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="search-results search-results--success" aria-live="polite">
-      <h2 className="search-results__title">Result</h2>
-      {question && <p className="search-results__question">{question}</p>}
-      <div className="search-results__answer">
-        {thinking && <ThinkBlock content={thinking} />}
-        {answer ? (
-          <MarkdownRenderer text={answer} />
-        ) : streaming ? (
-          <span className="answer__cursor" aria-hidden="true" />
-        ) : null}
-      </div>
+    <section className="search-results search-results--empty" aria-live="polite">
+      <p className="search-results__empty">No search yet – enter a question above.</p>
     </section>
   );
 }
