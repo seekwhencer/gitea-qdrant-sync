@@ -44,8 +44,10 @@ export default function App() {
 
   return (
     <main className="main__container">
-      <h1>Gitea Markdown Search RAG</h1>
-      <ReSyncButton />
+      <header className="app__header">
+        <h1>Gitea Markdown Search RAG</h1>
+        <ReSyncButton />
+      </header>
       <div className="app__layout">
         <section className="app__secondary">
           <div className="app__history-header">

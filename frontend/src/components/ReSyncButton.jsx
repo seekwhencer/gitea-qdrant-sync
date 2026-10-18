@@ -20,6 +20,9 @@ export default function ReSyncButton() {
 
   return (
     <div className="re-sync">
+      {message && (
+        <p className="re-sync__message">{message}</p>
+      )}
       <button
         className="re-sync__button"
         type="button"
@@ -35,9 +38,6 @@ export default function ReSyncButton() {
           'Gitea Re-Sync'
         )}
       </button>
-      {message && (
-        <p className="re-sync__message">{message}</p>
-      )}
     </div>
   );
 }

@@ -1,45 +1,45 @@
 .re-sync {
   margin-bottom: var(--space-6);
+  display: flex;
+  gap: var(--space-3);
+  flex-direction: row;
 }
 
 .re-sync__button {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-width: 9rem;
-  padding: var(--space-3) var(--space-5);
-  font-size: var(--fs-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
   font-weight: 600;
   font-family: inherit;
-  line-height: 1;
-  color: #fff;
-  background: var(--color-primary);
-  border: none;
-  border-radius: var(--radius);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  white-space: nowrap;
-  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  transition: color var(--transition), background-color var(--transition), border-color var(--transition);
+
 }
 
 .re-sync__button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  box-shadow: var(--shadow-md);
-}
-
-.re-sync__button:active:not(:disabled) {
-  background: var(--color-primary-active);
-  transform: translateY(1px);
+  color: var(--color-primary-active);
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
 }
 
 .re-sync__button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .re-sync__button:disabled {
   opacity: 0.75;
   cursor: default;
+}
+
+.re-sync__button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .re-sync__spinner {
@@ -55,7 +55,6 @@
 
 .re-sync__message {
   margin: 0;
-  margin-top: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
   border-left: 3px solid var(--color-primary);

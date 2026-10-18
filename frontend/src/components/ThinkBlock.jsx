@@ -17,7 +17,7 @@ export default function ThinkBlock({ content }) {
         aria-expanded={expanded}
       >
         <span className="thinking__label">
-          {expanded ? 'Denkblock zuklappen' : 'Denkblock anzeigen'}
+          {expanded ? 'hide thinking ' : 'show thinking'}
         </span>
       </button>
       {expanded && (
