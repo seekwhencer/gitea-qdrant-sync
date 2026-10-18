@@ -72,7 +72,7 @@ svg {
 }
 
 .main__container {
-  max-width: 80vw;
+  max-width: 95vw; 
   margin: auto;
   padding-top: var(--space-4); 
 }

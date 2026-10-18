@@ -53,15 +53,15 @@ describe('Config', () => {
     });
 
     it('falls back to LLM_* env vars for embeddings when EMBEDDINGS_* are unset', () => {
-        const config = new Config({ CONFIG_PATH: missingPath(), LLM_API: 'openapi', LLM_URL: 'http://llm' });
-        expect(config.embeddingsApi).toBe('openapi');
+        const config = new Config({ CONFIG_PATH: missingPath(), LLM_API: 'openai', LLM_URL: 'http://llm' });
+        expect(config.embeddingsApi).toBe('openai');
         expect(config.embeddingsUrl).toBe('http://llm');
     });
 
     it('prefers EMBEDDINGS_* over LLM_* when both are set', () => {
         const config = new Config({
             CONFIG_PATH: missingPath(),
-            LLM_API: 'openapi', LLM_URL: 'http://llm',
+            LLM_API: 'openai', LLM_URL: 'http://llm',
             EMBEDDINGS_API: 'ollama', EMBEDDINGS_URL: 'http://embed'
         });
         expect(config.embeddingsApi).toBe('ollama');

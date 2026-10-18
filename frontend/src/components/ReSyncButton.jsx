@@ -10,9 +10,9 @@ export default function ReSyncButton() {
     setMessage(null);
     try {
       await syncAll();
-      setMessage('Re-Sync aller Repositories gestartet im Hintergrund.');
+      setMessage('Re-Sync of all repositories started in the background.');
     } catch (error) {
-      setMessage(error.message || 'Re-Sync fehlgeschlagen.');
+      setMessage(error.message || 'Re-Sync failed.');
     } finally {
       setPending(false);
     }
@@ -29,7 +29,7 @@ export default function ReSyncButton() {
         {pending ? (
           <>
             <span className="re-sync__spinner" aria-hidden="true" />
-            Re-Sync läuft…
+            Re-Sync in progress…
           </>
         ) : (
           'Gitea Re-Sync'

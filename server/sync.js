@@ -21,7 +21,7 @@ class ConcurrencyLimiter {
         this.limit = Math.max(Number(limit), 1);
         this.activePromises = [];
         this.label = '[ConcurrencyLimiter]';
-        this.logger = logger || { log: () => {}, error: () => {} };
+        this.logger = logger || { log: () => { }, error: () => { } };
     }
 
     async run(taskFn) {
@@ -53,10 +53,10 @@ class GiteaQdrantSync {
      * @param {string} [params.qdrantUrl] - Qdrant server URL
      * @param {number} [params.qdrantPort] - Qdrant port
      * @param {string} [params.qdrantCollection] - Qdrant collection name
-     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openapi)
+     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openai)
      * @param {string} [params.embeddingsUrl] - Embedding server URL
      * @param {string} [params.embeddingsModel] - Embedding model name
-     * @param {string} [params.chatApi] - Chat API (ollama/openapi)
+     * @param {string} [params.chatApi] - Chat API (ollama/openai)
      * @param {string} [params.chatUrl] - Chat server URL
      * @param {string} [params.chatModel] - Chat model name
      * @param {string} [params.giteaApiUrl] - Gitea API URL
@@ -82,7 +82,7 @@ class GiteaQdrantSync {
     } = {}) {
         this.qdrantChunkMaxSize = qdrantChunkMaxSize;
         this.label = '[Sync]';
-        this.logger = logger || { log: () => {}, error: () => {} };
+        this.logger = logger || { log: () => { }, error: () => { } };
 
         const maxConcurrency = Number(process.env.QDRANT_MAX_CONCURRENCY ?? 4);
         const maxUpsertRetries = Number(process.env.QDRANT_MAX_UPSERT_RETRIES ?? 5);
@@ -97,6 +97,8 @@ class GiteaQdrantSync {
             chatApi, chatUrl, chatModel,
             logger: this.logger
         });
+
+        this.logger.log(this.label, 'Init');
     }
 
     /**
@@ -116,7 +118,7 @@ class GiteaQdrantSync {
         const ref = payload.ref || '';
         const owner = repository?.owner?.username;
         const name = repository?.name;
-        this.logger.log(this.label,`Push received for repository: ${repository.html_url}`);
+        this.logger.log(this.label, `Push received for repository: ${repository.html_url}`);
 
         const changedFiles = this.gitea.collectMarkdownFiles(payload.commits || []);
         if (changedFiles.length === 0) return;
@@ -129,7 +131,7 @@ class GiteaQdrantSync {
                 return true;
             }
             catch (error) {
-                this.logger.error(this.label,`Error processing changed file ${filePath}:`, error);
+                this.logger.error(this.label, `Error processing changed file ${filePath}:`, error);
                 return false;
             }
         })));
@@ -140,7 +142,7 @@ class GiteaQdrantSync {
             throw new Error('No files could be synchronized successfully.');
         }
 
-        this.logger.log(this.label,`Synchronized ${successCount}/${changedFiles.length} changed files for ${repository.html_url}.`);
+        this.logger.log(this.label, `Synchronized ${successCount}/${changedFiles.length} changed files for ${repository.html_url}.`);
     }
 
     /**
@@ -192,14 +194,14 @@ class GiteaQdrantSync {
      */
     async _performSyncAll() {
         const repos = await this.gitea.listRepos();
-        this.logger.log(this.label,`${repos.length} Repository gefunden.`);
+        this.logger.log(this.label, `${repos.length} Repository gefunden.`);
 
         for (const { owner, name } of repos) {
             try {
                 await this.syncRepository(owner, name, 'main');
-                this.logger.log(this.label,`Repo ${owner}/${name} synchronisiert.`);
+                this.logger.log(this.label, `Repo ${owner}/${name} synchronisiert.`);
             } catch (error) {
-                this.logger.error(this.label,`Fehler bei Repo ${owner}/${name}:`, error.message);
+                this.logger.error(this.label, `Fehler bei Repo ${owner}/${name}:`, error.message);
             }
         }
 
@@ -212,13 +214,13 @@ class GiteaQdrantSync {
      * Files are processed concurrently, bounded by the concurrency limiter (same as handlePushEvent).
      */
     async syncRepository(owner, name, ref = 'main') {
-        this.logger.log(this.label,`Starting full sync for ${owner}/${name} (ref: ${ref})`);
+        this.logger.log(this.label, `Starting full sync for ${owner}/${name} (ref: ${ref})`);
 
         const markdownFiles = await this.gitea.listFiles(owner, name, ref);
-        this.logger.log(this.label,`Found ${markdownFiles.length} Markdown files in ${owner}/${name}`);
+        this.logger.log(this.label, `Found ${markdownFiles.length} Markdown files in ${owner}/${name}`);
 
         if (markdownFiles.length === 0) {
-            this.logger.log(this.label,`No Markdown files found for ${owner}/${name}.`);
+            this.logger.log(this.label, `No Markdown files found for ${owner}/${name}.`);
             return;
         }
 
@@ -234,11 +236,11 @@ class GiteaQdrantSync {
                 await this.syncFile(payload, filePath, ref, path);
             }
             catch (error) {
-                this.logger.error(this.label,`Error processing file ${filePath}:`, error);
+                this.logger.error(this.label, `Error processing file ${filePath}:`, error);
             }
         })));
 
-        this.logger.log(this.label,`Repository ${owner}/${name} synced with ${markdownFiles.length} files.`);
+        this.logger.log(this.label, `Repository ${owner}/${name} synced with ${markdownFiles.length} files.`);
     }
 
     /**
@@ -253,7 +255,7 @@ class GiteaQdrantSync {
      * @returns {Promise<void>}
      */
     async syncFile(payload, filePath, ref = '', path = '') {
-        this.logger.log(this.label,`Processing file: ${filePath}`);
+        this.logger.log(this.label, `Processing file: ${filePath}`);
 
         const content = await this.gitea.fetchFile(payload.repository, filePath, payload.after);
         const chunks = this.chunkContent(content);
@@ -275,7 +277,7 @@ class GiteaQdrantSync {
             const vector = await this.llm.embed(chunkText);
             try { return await this.upsertWithRetry(vector, chunkText, filePath, repositoryUrl, ref, path); }
             catch (error) {
-                this.logger.error(this.label,`Error upserting chunks of ${filePath}:`, error);
+                this.logger.error(this.label, `Error upserting chunks of ${filePath}:`, error);
                 throw error;
             }
         }));
@@ -302,7 +304,7 @@ class GiteaQdrantSync {
                 if (!this.isRateLimitError(err)) throw err;
                 lastError = err;
                 const delayMs = Math.min(1000 * Math.pow(2, attempt), 8000);
-                this.logger.log(this.label,`Rate limit hit for ${filePath}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts})`);
+                this.logger.log(this.label, `Rate limit hit for ${filePath}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts})`);
                 await sleep(delayMs);
             }
         }

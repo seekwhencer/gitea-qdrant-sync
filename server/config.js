@@ -17,7 +17,7 @@ class Config {
         qdrantChunkMaxSize: 768,
         embeddingsApi: '',
         embeddingsUrl: '',
-        embeddingsModel: 'nomic-embed-text',
+        embeddingsModel: '',
         chatApi: '',
         chatUrl: '',
         chatModel: '',

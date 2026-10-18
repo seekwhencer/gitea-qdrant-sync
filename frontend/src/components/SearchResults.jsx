@@ -1,14 +1,14 @@
 import AnswerText from './AnswerText';
 
 const ERROR_MESSAGES = {
-  400: 'Bitte gib eine Frage ein.',
-  404: 'Keine passenden gefundenen Dokumente.',
-  500: 'Serverfehler, bitte erneut versuchen.'
+  400: 'Please enter a question.',
+  404: 'No matching documents found.',
+  500: 'Server error, please try again.'
 };
 
 function errorMessage(error) {
   if (error && (error.name === 'NetworkError' || error.status === 0)) {
-    return 'Verbindung zum Server fehlgeschlagen.';
+    return 'Connection to server failed.';
   }
   if (error && ERROR_MESSAGES[error.status] !== undefined) {
     return ERROR_MESSAGES[error.status];
@@ -16,7 +16,7 @@ function errorMessage(error) {
   return error ? error.message : '';
 }
 
-export default function SearchResults({ answer, error, pending }) {
+export default function SearchResults({ answer, question, error, pending }) {
   if (error) {
     let severity = 'other';
     if (error.name === 'NetworkError' || error.status === 0) severity = 'connection';
@@ -37,8 +37,11 @@ export default function SearchResults({ answer, error, pending }) {
   if (pending && !answer) {
     return (
       <section className="search-results search-results--loading" aria-live="polite">
-        <span className="spinner" role="status" aria-hidden="true" />
-        <p className="search-results__loading">Suche läuft…</p>
+        {question && <p className="search-results__question">{question}</p>}
+        <div className="search-results__loading-flex">
+          <span className="spinner" role="status" aria-hidden="true" />
+          <p className="search-results__loading">Search in progress…</p>
+        </div>
         <div className="skeleton">
           <span className="skeleton__line skeleton__line--short" />
           <span className="skeleton__line" />
@@ -51,14 +54,15 @@ export default function SearchResults({ answer, error, pending }) {
   if (!answer) {
     return (
       <section className="search-results search-results--empty" aria-live="polite">
-        <p className="search-results__empty">Noch keine Suche – gib oben eine Frage ein.</p>
+        <p className="search-results__empty">No search yet – enter a question above.</p>
       </section>
     );
   }
 
   return (
     <section className="search-results search-results--success" aria-live="polite">
-      <h2 className="search-results__title">Ergebnis</h2>
+      <h2 className="search-results__title">Result</h2>
+      {question && <p className="search-results__question">{question}</p>}
       <div className="search-results__answer">
         <AnswerText text={answer} />
       </div>

@@ -80,10 +80,10 @@ The environment variables take precedence over `config.json`. In Docker they are
 | `QDRANT_PORT`             | Port of the Qdrant instance (default: `80`)                                                                           |
 | `QDRANT_COLLECTION`       | Name of the Qdrant collection (default: `research`)                                                                   |
 | `QDRANT_CHUNK_MAX_SIZE`   | Maximum size of a chunk in characters (default: `768`)                                                                |
-| `EMBEDDINGS_API`          | Embedding backend: `ollama` (default) posts to `{URL}/api/embed`, `openapi` posts to `{URL}/embeddings`               |
+| `EMBEDDINGS_API`          | Embedding backend: `ollama` (default) posts to `{URL}/api/embed`, `openai` posts to `{URL}/embeddings`               |
 | `EMBEDDINGS_URL`          | Base URL of the embedding LLM host (e.g. `http://localhost:11434` for Ollama or `http://localhost:8080/v1` for llama.cpp) |
 | `EMBEDDINGS_MODEL`        | Embedding model name (default: `nomic-embed-text`)                                                                    |
-| `CHAT_API`                | Chat backend: `ollama` (default) posts to `{URL}/api/chat`, `openapi` posts to `{URL}/chat/completions`               |
+| `CHAT_API`                | Chat backend: `ollama` (default) posts to `{URL}/api/chat`, `openai` posts to `{URL}/chat/completions`               |
 | `CHAT_URL`                | Base URL of the chat LLM host                                                                                         |
 | `CHAT_MODEL`              | Chat model name                                                                                                        |
 | `GITEA_API_URL`           | Base URL of the Gitea API                                                                                             |

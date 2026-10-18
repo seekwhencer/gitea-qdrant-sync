@@ -12,6 +12,7 @@ export function useSearch() {
 export function useSearchStream() {
   const [thinking, setThinking] = useState('');
   const [answer, setAnswer] = useState('');
+  const [question, setQuestion] = useState('');
   const [phase, setPhase] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [pending, setPending] = useState(false);
@@ -19,6 +20,7 @@ export function useSearchStream() {
   const [done, setDone] = useState(false);
 
   const run = useCallback(async (question) => {
+    setQuestion(question);
     let serverThinking = '';
     let extractedThinking = '';
     let answerPrefix = '';
@@ -36,7 +38,7 @@ export function useSearchStream() {
     setThinking('');
     setAnswer('');
     setPhase('searching');
-    setStatusMessage('Suche läuft…');
+    setStatusMessage('Search in progress…');
     setError(null);
     setPending(true);
     setDone(false);
@@ -89,7 +91,7 @@ export function useSearchStream() {
         } else if (event === 'status') { setPhase(data.phase); setStatusMessage(data.message); }
         else if (event === 'empty') { setPhase(null); setStatusMessage(''); setDone(true); setPending(false); }
         else if (event === 'done') { setDone(true); setPending(false); flush(); }
-        else if (event === 'error') throw new Error(data.message || 'Streaming fehlgeschlagen.');
+        else if (event === 'error') throw new Error(data.message || 'Streaming failed.');
       }
     } catch (e) {
       err = e;
@@ -101,5 +103,16 @@ export function useSearchStream() {
     return { thinking: serverThinking + extractedThinking, answer: answerPrefix + answerSuffix, error: err };
   }, []);
 
-  return { thinking, answer, phase, statusMessage, pending, error, done, run };
+  const setResult = useCallback(({ thinking: t, answer: a, error: e, question: q }) => {
+    setThinking(t || '');
+    setAnswer(a || '');
+    setError(e || null);
+    setQuestion(q || '');
+    setPending(false);
+    setDone(true);
+    setStatusMessage('');
+    setPhase(null);
+  }, []);
+
+  return { thinking, answer, question, phase, statusMessage, pending, error, done, run, setResult };
 }

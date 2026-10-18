@@ -28,8 +28,14 @@
   gap: var(--space-3);
 }
 
+.search-results__loading-flex {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .search-results__loading {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
@@ -105,6 +111,16 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.search-results__question {
+  font-family: var(--font-mono);
+  margin: 0 0 var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+
 .search-results__answer,
 .conversation__answer {
   margin: 0;
@@ -112,6 +128,12 @@
   color: var(--color-text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+
+.search-results__answer {
+  overflow-y: auto;
+  max-height: 80vh;
 }
 
 .conversation__answer {
@@ -208,12 +230,12 @@
 
 .markdown ul,
 .markdown ol {
-  margin: 0;
+  margin: 0 0 var(--space-4) 0;
   padding-left: var(--space-6);
   white-space: initial;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-1);
 }
 
 .markdown li {
@@ -255,11 +277,11 @@
 
 .markdown code {
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.85rem;
   background: var(--color-surface-alt);
   padding: 0.15em 0.6em;
   border-radius: var(--radius-sm);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .markdown pre {
@@ -275,13 +297,23 @@
   font-family: var(--font-mono);
   font-size: 0.82rem;
   background: none;
+}
+
+.markdown pre pre {
+  margin: 0;
   padding: 0;
+  border: none;
+}
+
+.markdown pre pre code {
+  padding-left: var(--space-5);
+  display: inline-block;
 }
 
 .markdown hr {
   border: none;
-  border-top: 1px solid var(--color-border);
-  margin: var(--space-5) 0;
+  border-top: 1px dotted var(--color-border-strong);
+  margin: var(--space-1) 0; 
 }
 
 .markdown table {
@@ -373,14 +405,18 @@
   margin: var(--space-2) 0 0;
   padding: var(--space-3);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--color-text-secondary);
+  color: var(--color-primary);
+}
+
+.search-results__answer .thinking__body {
+  margin-bottom: var(--space-5);
 }
 
 /* Error state (shared) */
@@ -426,7 +462,7 @@
   border: 2px solid var(--color-border-strong);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  display: inline-block;
+  display: flex;
   animation: search-results-spin 0.7s linear infinite;
 }
 

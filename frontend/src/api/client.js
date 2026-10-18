@@ -5,7 +5,7 @@ async function request(path, options) {
   try {
     res = await fetch(BASE + path, options);
   } catch {
-    throw Object.assign(new Error('Verbindung zum Server fehlgeschlagen.'), { name: 'NetworkError', status: 0 });
+    throw Object.assign(new Error('Connection to server failed.'), { name: 'NetworkError', status: 0 });
   }
 
   if (!res.ok) {
@@ -54,7 +54,7 @@ export async function* searchStream(question) {
       body: JSON.stringify({ question })
     });
   } catch {
-    throw Object.assign(new Error('Verbindung zum Server fehlgeschlagen.'), { name: 'NetworkError', status: 0 });
+    throw Object.assign(new Error('Connection to server failed.'), { name: 'NetworkError', status: 0 });
   }
 
   if (!res.ok) {

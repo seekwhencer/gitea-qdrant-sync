@@ -1,6 +1,6 @@
 .app__layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 300px 1fr;
   gap: var(--space-8);
   align-items: start;
 }
@@ -12,7 +12,7 @@
   }
 }
 
-.app__primary {
+.app__secondary {
   min-width: 0;
   position: sticky;
   top: var(--space-5);
@@ -20,15 +20,12 @@
   max-height: calc(100vh - var(--space-8));
 }
 
-.app__secondary {
-  position: sticky;
-  top: var(--space-5);
-  max-height: calc(100vh - var(--space-8));
-  overflow-y: auto;
+.app__primary {
+ 
 }
 
 @media (max-width: 640px) {
-  .app__secondary {
+  .app__primary {
     position: static;
     max-height: none;
     overflow: visible;
@@ -128,10 +125,10 @@
 
 .conversation__head {
   display: flex;
+  flex-direction: column;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
 }
 
 .conversation__head-trailing {

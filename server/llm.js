@@ -25,12 +25,12 @@ class Llm {
         logger
     } = {}) {
         this.embeddingsConfig = {
-            api: (embeddingsApi === 'openapi') ? 'openapi' : 'ollama',
+            api: (embeddingsApi === 'openai') ? 'openai' : 'ollama',
             baseUrl: this.normalizeUrl(embeddingsUrl),
             modelName: embeddingsModel
         };
         this.chatConfig = {
-            api: (chatApi === 'openapi') ? 'openapi' : 'ollama',
+            api: (chatApi === 'openai') ? 'openai' : 'ollama',
             baseUrl: this.normalizeUrl(chatUrl),
             modelName: chatModel
         };
@@ -67,7 +67,7 @@ class Llm {
             const cfg = this.embeddingsConfig;
             const base = this.normalizeUrl(cfg.baseUrl);
 
-            if (cfg.api === 'openapi') {
+            if (cfg.api === 'openai') {
                 const res = await axios.post(`${base}/embeddings`, {
                     model: cfg.modelName,
                     input: text
@@ -115,12 +115,15 @@ class Llm {
         const cfg = this.chatConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
 
-        if (cfg.api === 'openapi') {
+        if (cfg.api === 'openai') {
             const res = await axios.post(`${base}/chat/completions`, {
                 model: options.model || cfg.modelName,
                 messages: messages,
                 ...options
             });
+
+            this.logger.log(this.label, 'CHOICES', res.data.choices);
+
             return res.data.choices[0].message.content;
         }
 
@@ -210,7 +213,7 @@ class Llm {
         const cfg = this.chatConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
 
-        if (cfg.api === 'openapi') {
+        if (cfg.api === 'openai') {
             const res = await fetch(`${base}/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -247,7 +250,7 @@ class Llm {
      */
     async *streamChat(messages, options = {}) {
         for await (const chunk of this.streamChunks(messages, options)) {
-            if (this.chatConfig.api === 'openapi') {
+            if (this.chatConfig.api === 'openai') {
                 const delta = chunk.choices?.[0]?.delta || {};
                 const reasoning = delta.reasoning_content ?? delta.thinking ?? '';
                 if (reasoning) yield { phase: 'thinking', token: reasoning };

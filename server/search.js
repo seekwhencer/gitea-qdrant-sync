@@ -13,10 +13,10 @@ class Search {
      * @param {string} [params.qdrantUrl] - Qdrant server URL
      * @param {number} [params.qdrantPort] - Qdrant port
      * @param {string} [params.qdrantCollection] - Qdrant collection name
-     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openapi)
+     * @param {string} [params.embeddingsApi] - Embedding API (ollama/openai)
      * @param {string} [params.embeddingsUrl] - Embedding server URL
      * @param {string} [params.embeddingsModel] - Embedding model name
-     * @param {string} [params.chatApi] - Chat API (ollama/openapi)
+     * @param {string} [params.chatApi] - Chat API (ollama/openai)
      * @param {string} [params.chatUrl] - Chat server URL
      * @param {string} [params.chatModel] - Chat model name
      * @param {string} [params.systemPrompt] - System prompt for the LLM
