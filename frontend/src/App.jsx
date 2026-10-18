@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import SearchBar from './components/SearchBar';
 import ReSyncButton from './components/ReSyncButton';
 import StreamingResults from './components/StreamingResults';
@@ -6,28 +7,40 @@ import { useSearchStream } from './hooks/useSearch';
 import { useConversation } from './hooks/useConversation';
 
 export default function App() {
-  const { thinking, answer, question, statusMessage, pending, error, done, run, setResult } = useSearchStream();
-  const { items, add, clear } = useConversation();
+  const { thinking, answer, question, statusMessage, pending, error, done, run } = useSearchStream();
+  const { items, add, update, clear } = useConversation();
+  const [activeItemId, setActiveItemId] = useState(null);
+  const [currentSearchItemId, setCurrentSearchItemId] = useState(null);
 
   const handleSubmit = async (question) => {
-    const result = await run(question);
-    add({
+    const id = add({
       question,
-      answer: result.answer || null,
-      thinking: result.thinking || null,
-      error: result.error ? result.error.message : null,
+      answer: null,
+      thinking: null,
+      error: null,
       ts: Date.now(),
+      pending: true,
     });
+    setCurrentSearchItemId(id);
+    setActiveItemId(null);
+
+    const result = await run(question);
+
+    update(id, {
+      answer: result.answer ?? null,
+      thinking: result.thinking ?? null,
+      error: result.error ? result.error.message : null,
+      pending: false,
+    });
+    setCurrentSearchItemId(null);
   };
 
   const handleSelect = (item) => {
-    setResult({
-      thinking: item.thinking || '',
-      answer: item.answer || '',
-      error: item.error || null,
-      question: item.question || '',
-    });
+    setActiveItemId(item.id === currentSearchItemId ? null : item.id);
   };
+
+  const activeItem = activeItemId ? items.find((i) => i.id === activeItemId) : null;
+  const isLive = !activeItemId;
 
   return (
     <main className="main__container">
@@ -51,14 +64,15 @@ export default function App() {
         </section>
         <section className="app__primary">
           <SearchBar onSubmit={handleSubmit} pending={pending} />
+          {/* activeItemId === null => show the live running search; otherwise show the selected history item */}
           <StreamingResults
-            thinking={thinking}
-            answer={answer}
-            question={question}
-            statusMessage={statusMessage}
-            pending={pending}
-            error={error}
-            done={done}
+            thinking={isLive ? thinking : (activeItem?.thinking || '')}
+            answer={isLive ? answer : (activeItem?.answer || '')}
+            question={isLive ? question : (activeItem?.question || '')}
+            statusMessage={isLive ? statusMessage : ''}
+            pending={isLive ? pending : false}
+            error={isLive ? error : (activeItem?.error || null)}
+            done={isLive ? done : true}
           />
         </section>
       </div>

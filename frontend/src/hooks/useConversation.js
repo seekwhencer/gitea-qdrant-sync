@@ -28,19 +28,35 @@ function loadInitial() {
 export function useConversation() {
   const [items, setItems] = useState(loadInitial);
 
-  const add = useCallback(({ question, answer, thinking, error, ts }) => {
+  const add = useCallback(({ question, answer, thinking, error, ts, pending }) => {
+    const id = makeId();
     setItems((prev) => {
       const next = [
         {
-          id: makeId(),
+          id,
           question,
           answer: answer ?? null,
           thinking: thinking ?? null,
           error: error ?? null,
           ts: ts ?? Date.now(),
+          pending: pending ?? false,
         },
         ...prev,
       ].slice(0, MAX_ITEMS);
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch (_) {}
+
+      return next;
+    });
+
+    return id;
+  }, []);
+
+  const update = useCallback((id, patch) => {
+    setItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, ...patch } : item));
 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -57,5 +73,5 @@ export function useConversation() {
     } catch (_) {}
   }, []);
 
-  return { items, add, clear };
+  return { items, add, update, clear };
 }

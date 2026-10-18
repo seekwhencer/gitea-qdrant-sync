@@ -36,7 +36,7 @@ export default function Conversation({ items, onSelect }) {
 function HistoryItem({ item, onSelect }) {
   return (
     <li
-      className={`conversation__item${item.error ? ' conversation__item--error' : ''}`}
+      className={`conversation__item${item.error ? ' conversation__item--error' : ''}${item.pending ? ' conversation__item--pending' : ''}`}
       onClick={() => {
         if (onSelect) onSelect(item);
       }}
@@ -44,6 +44,9 @@ function HistoryItem({ item, onSelect }) {
       <div className="conversation__head">
         <h3 className="conversation__question">{item.question}</h3>
         <div className="conversation__head-trailing">
+          {item.pending && (
+            <span className="conversation__pending" aria-label="Search in progress">…</span>
+          )}
           {item.ts != null && (
             <time
               className="conversation__time"

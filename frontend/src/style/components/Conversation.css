@@ -123,6 +123,31 @@
   border-left: 3px solid var(--color-error);
 }
 
+.conversation__item--pending {
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.conversation__pending {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  animation: conversation-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes conversation-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
 .conversation__head {
   display: flex;
   flex-direction: column;
