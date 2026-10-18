@@ -24,7 +24,7 @@ class Qdrant {
             url: url,
             port: port,
             checkCompatibility: false
-        }
+        };
         this.client = new QdrantClient(this.params);
 
         this.client.versionInfo().then(data => console.log('[Qdrant] Version:', data.version));
@@ -43,8 +43,7 @@ class Qdrant {
         path,
         source = '',
         repository = '',
-        ref = '',
-        commit = ''
+        ref = ''
     } = {}) {
         const hex = createHash('sha256').update(`${chunkText}\0${repository}`).digest('hex');
         // Qdrant requires point IDs to be unsigned integers or UUIDs; a raw hex hash is neither.
@@ -63,8 +62,7 @@ class Qdrant {
                         path: payloadPath,
                         source: String(source) || '',
                         repository: String(repository),
-                        ref: String(ref),
-                        commit: String(commit)
+                        ref: String(ref)
                     }
                 }
             ]

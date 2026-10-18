@@ -2,6 +2,11 @@ import { Qdrant } from './qdrant.js';
 import { Llm } from './llm.js';
 import { Gitea } from './gitea.js';
 
+/**
+ * Sleeps for the given number of milliseconds.
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>}
+ */
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -102,6 +107,9 @@ class GiteaQdrantSync {
      */
     async handlePushEvent(payload) {
         const repository = payload.repository;
+        const ref = payload.ref || '';
+        const owner = repository?.owner?.username;
+        const name = repository?.name;
         console.log(`[Webhook] Push received for repository: ${repository.html_url}`);
 
         const changedFiles = this.gitea.collectMarkdownFiles(payload.commits || []);
@@ -109,7 +117,11 @@ class GiteaQdrantSync {
 
         // Process files concurrently, bounded by the concurrency limiter.
         const results = await Promise.all(changedFiles.map(filePath => this.limiter.run(async () => {
-            try { await this.syncFile(payload, filePath); return true; }
+            try {
+                const path = `${owner}/${name}/${filePath}`;
+                await this.syncFile(payload, filePath, ref, path);
+                return true;
+            }
             catch (error) {
                 console.error(`[Sync] Error processing changed file ${filePath}:`, error);
                 return false;
@@ -129,7 +141,9 @@ class GiteaQdrantSync {
      * Promise-basierte Sperre für Re-Syncs. Verhindert parallele Re-Syncs;
      * ein neuer Request wartet auf _syncLock bis der laufende Re-Sync fertig ist.
      */
+    /** @type {Promise<void>} */
     _syncLock = Promise.resolve();
+    /** @type {boolean} */
     _syncInProgress = false;
 
     /**
@@ -209,7 +223,10 @@ class GiteaQdrantSync {
 
         // Process files concurrently, bounded by the concurrency limiter. Errors of individual files are logged.
         await Promise.all(markdownFiles.map(filePath => this.limiter.run(async () => {
-            try { await this.syncFile(payload, filePath); }
+            try {
+                const path = `${owner}/${name}/${filePath}`;
+                await this.syncFile(payload, filePath, ref, path);
+            }
             catch (error) {
                 console.error(`[Sync] Error processing file ${filePath}:`, error);
             }
@@ -229,7 +246,7 @@ class GiteaQdrantSync {
      * @param {string} filePath - Path of the file to synchronize
      * @returns {Promise<void>}
      */
-    async syncFile(payload, filePath) {
+    async syncFile(payload, filePath, ref = '', path = '') {
         console.log(`Processing file: ${filePath}`);
 
         const content = await this.gitea.fetchFile(payload.repository, filePath, payload.after);
@@ -250,7 +267,7 @@ class GiteaQdrantSync {
         // limiter bounds how many files run at the same time, keeping Qdrant rate limits respected.
         await Promise.all(chunks.map(async chunkText => {
             const vector = await this.llm.embed(chunkText);
-            try { return await this.upsertWithRetry(vector, chunkText, filePath, repositoryUrl); }
+            try { return await this.upsertWithRetry(vector, chunkText, filePath, repositoryUrl, ref, path); }
             catch (error) {
                 console.error(`[Sync] Error upserting chunks of ${filePath}:`, error);
                 throw error;
@@ -263,16 +280,18 @@ class GiteaQdrantSync {
      *
      * @param {number[]} vector - The embedding vector
      * @param {string} chunkText - The text content of the point
-     * @param {string} filePath - Source path (used as `source`/`path`)
+     * @param {string} filePath - Source path (used as `source`)
      * @param {string} repositoryUrl - Repository URL used for idempotent point ids and metadata
+     * @param {string} [ref=''] - Git ref/branch name
+     * @param {string} [path=''] - Complete repo path (owner/repo/filePath)
      * @returns {Promise<void>}
      */
-    async upsertWithRetry(vector, chunkText, filePath, repositoryUrl) {
+    async upsertWithRetry(vector, chunkText, filePath, repositoryUrl, ref = '', path = '') {
         let lastError;
         const maxAttempts = this.maxUpsertRetries + 1;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            try { return await this.qdrant.upsert(vector, { text: chunkText, source: filePath, repository: repositoryUrl }); }
+            try { return await this.qdrant.upsert(vector, { text: chunkText, source: filePath, path, repository: repositoryUrl, ref }); }
             catch (err) {
                 if (!this.isRateLimitError(err)) throw err;
                 lastError = err;

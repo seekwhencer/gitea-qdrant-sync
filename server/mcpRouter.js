@@ -21,6 +21,10 @@ class McpRouter {
         return this.router;
     }
 
+    /**
+     * Defines the MCP routes and host validation middleware.
+     * @returns {void}
+     */
     define() {
         if (!this.mcpService || !this.config.mcpEnabled) return;
 

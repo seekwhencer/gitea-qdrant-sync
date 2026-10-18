@@ -74,7 +74,7 @@ class Search {
             const messages = [
                 {
                     role: 'system',
-                    content: `You are a helpful research assistant. Answer the user's question precisely based solely on the following context:\n\n${context}`
+                    content: `You are a helpful research assistant. Answer in markdown format the user's question precisely and full, based solely on the following context:\n\n${context}`
                 },
                 {
                     role: 'user',
@@ -160,8 +160,7 @@ class Search {
                 metadata: {
                     repository: item.payload?.repository || '',
                     path: item.payload?.path || '',
-                    ref: item.payload?.ref || '',
-                    commit: item.payload?.commit || ''
+                    ref: item.payload?.ref || ''
                 }
             }));
 

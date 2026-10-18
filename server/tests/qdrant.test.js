@@ -28,7 +28,7 @@ describe('Qdrant', () => {
 
     it('upsert sends a deterministic id and a full payload', async () => {
         const q = new Qdrant({ url: 'http://q', port: 80, collection: 'research' });
-        await q.upsert([0.1, 0.2], { text: 'hello', path: 'a.md', source: 'a.md', repository: 'repo', ref: 'main', commit: 'abc' });
+        await q.upsert([0.1, 0.2], { text: 'hello', path: 'a.md', source: 'a.md', repository: 'repo', ref: 'main' });
 
         expect(clientMock.upsert).toHaveBeenCalledTimes(1);
         const [collection, payload] = clientMock.upsert.mock.calls[0];
@@ -44,8 +44,7 @@ describe('Qdrant', () => {
             path: 'a.md',
             source: 'a.md',
             repository: 'repo',
-            ref: 'main',
-            commit: 'abc'
+            ref: 'main'
         });
     });
 

@@ -45,7 +45,9 @@ class Llm {
      */
     normalizeUrl(url) {
         return String(url || '').replace(/\/+$/, '');
-    }    /**
+    }
+
+    /**
      * Generates an embedding vector for the given text.
      * @param {string} text - The text to embed
      * @returns {Promise<number[]>} The embedding vector
