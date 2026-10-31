@@ -3,6 +3,18 @@
   <p align='center'>RAG + MCP + Web UI</p>
 </p>
 
+<p align="center">
+  <img src=".docs/badges/cloud.png" alt="cloud | nein danke" height="20">
+  <img src=".docs/badges/api-keys.png" alt="api keys | 0" height="20">
+  <img src=".docs/badges/llm.png" alt="llm | ollama · llama.cpp" height="20">
+  <img src=".docs/badges/mcp.png" alt="mcp | ask · search · sync · sync-all" height="20">
+  <img src=".docs/badges/status.png" alt="status | it works™" height="20">
+  <img src=".docs/badges/typescript.png" alt="typescript | nein danke" height="20">
+  <img src=".docs/badges/uptime.png" alt="uptime | since last restart" height="20">
+  <img src=".docs/badges/works.png" alt="works on my machine | yes" height="20">
+  <img src=".docs/badges/coffee.png" alt="coffee | unendlich" height="20">
+</p>
+
 [![Dashboard (dark)](.docs/screenshots/search-answer.png)](.docs/screenshots/search.webm) 
 
 - A Node.js service that synchronizes **Markdown** files from **Gitea** repositories into a [Qdrant](https://qdrant.tech) vector database.
