@@ -15,9 +15,11 @@ class Config {
         qdrantPort: 80,
         qdrantCollection: 'research',
         qdrantChunkMaxSize: 768,
+        searchTopK: 10,
         embeddingsApi: '',
         embeddingsUrl: '',
         embeddingsModel: '',
+        embeddingsHost: '',
         chatApi: '',
         chatUrl: '',
         chatModel: '',
@@ -49,6 +51,7 @@ class Config {
         this.embeddingsApi = env.EMBEDDINGS_API || this.defaults.embeddingsApi || env.LLM_API;
         this.embeddingsUrl = env.EMBEDDINGS_URL || this.defaults.embeddingsUrl || env.LLM_URL;
         this.embeddingsModel = env.EMBEDDINGS_MODEL || this.defaults.embeddingsModel || env.MODEL_NAME;
+        this.embeddingsHost = env.EMBEDDINGS_HOST || this.defaults.embeddingsHost || '';
         this.chatApi = env.CHAT_API || this.defaults.chatApi;
         this.chatUrl = env.CHAT_URL || this.defaults.chatUrl;
         this.chatModel = env.CHAT_MODEL || this.defaults.chatModel;
@@ -56,6 +59,7 @@ class Config {
         this.giteaToken = env.GITEA_TOKEN || this.defaults.giteaToken;
         this.qdrantCollection = env.QDRANT_COLLECTION || this.defaults.qdrantCollection;
         this.qdrantChunkMaxSize = parseInt(env.QDRANT_CHUNK_MAX_SIZE, 10) || this.defaults.qdrantChunkMaxSize;
+        this.searchTopK = parseInt(env.SEARCH_TOP_K, 10) || this.defaults.searchTopK;
         this.mcpEnabled = env.MCP_ENABLED !== 'false' && this.defaults.mcpEnabled;
         this.mcpPath = env.MCP_PATH || this.defaults.mcpPath;
         this.mcpAllowedHosts = env.MCP_ALLOWED_HOSTS || this.defaults.mcpAllowedHosts;
@@ -82,6 +86,7 @@ class Config {
             embeddingsApi: this.env.EMBEDDINGS_API || Config.defaults.embeddingsApi,
             embeddingsUrl: this.env.EMBEDDINGS_URL || Config.defaults.embeddingsUrl,
             embeddingsModel: this.env.EMBEDDINGS_MODEL || Config.defaults.embeddingsModel,
+            embeddingsHost: this.env.EMBEDDINGS_HOST || Config.defaults.embeddingsHost,
             chatApi: this.env.CHAT_API || Config.defaults.chatApi,
             chatUrl: this.env.CHAT_URL || Config.defaults.chatUrl,
             chatModel: this.env.CHAT_MODEL || Config.defaults.chatModel,
@@ -89,6 +94,7 @@ class Config {
             giteaToken: this.env.GITEA_TOKEN || Config.defaults.giteaToken,
             qdrantCollection: this.env.QDRANT_COLLECTION || Config.defaults.qdrantCollection,
             qdrantChunkMaxSize: parseInt(this.env.QDRANT_CHUNK_MAX_SIZE, 10) || Config.defaults.qdrantChunkMaxSize,
+            searchTopK: parseInt(this.env.SEARCH_TOP_K, 10) || Config.defaults.searchTopK,
             mcpEnabled: this.env.MCP_ENABLED !== 'false' || Config.defaults.mcpEnabled,
             mcpPath: this.env.MCP_PATH || Config.defaults.mcpPath,
             mcpAllowedHosts: this.env.MCP_ALLOWED_HOSTS || Config.defaults.mcpAllowedHosts,

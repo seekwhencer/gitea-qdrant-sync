@@ -40,19 +40,21 @@ class Gitea {
             const status = error.response?.status;
             const message = error.response?.data?.message || error.message;
             this.logger.error(this.label,`Failed to fetch ${filePath} (ref ${ref}) from ${repository.owner.username}/${repository.name}: HTTP ${status} - ${message}`);
-            throw new Error(`Failed to fetch file ${filePath}: HTTP ${status} - ${message}`);
+            const err = new Error(`Failed to fetch file ${filePath}: HTTP ${status} - ${message}`);
+            err.status = status;
+            throw err;
         }
     }
 
     /**
-     * Collects .md file paths from added and modified files in a list of commits.
-     * @param {Array<object>} commits - Array of commit objects with added and modified arrays
+     * Collects .md file paths from added, modified and removed files in a list of commits.
+     * @param {Array<object>} commits - Array of commit objects with added, modified and removed arrays
      * @returns {Set<string>} Set of changed Markdown file paths
      */
     collectMarkdownFiles(commits) {
         const changedFiles = new Set();
         commits.forEach(commit => {
-            [...(commit.added || []), ...(commit.modified || [])].forEach(file => {
+            [...(commit.added || []), ...(commit.modified || []), ...(commit.removed || [])].forEach(file => {
                 if (file.endsWith('.md')) {
                     changedFiles.add(file);
                 }

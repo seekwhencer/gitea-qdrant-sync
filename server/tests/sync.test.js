@@ -106,6 +106,45 @@ describe('GiteaQdrantSync.handlePushEvent', () => {
         expect(gMock.fetchFile).not.toHaveBeenCalled();
         expect(qMock.upsert).not.toHaveBeenCalled();
     });
+
+    it('removes embeddings for files removed in the push', async () => {
+        gMock.collectMarkdownFiles.mockReturnValue(new Set(['removed.md']));
+        const notFound = new Error('Failed to fetch file removed.md: HTTP 404 - Not Found');
+        notFound.status = 404;
+        gMock.fetchFile.mockRejectedValueOnce(notFound);
+
+        await expect(sync.handlePushEvent({
+            repository: { html_url: 'http://x/a' },
+            commits: [{ removed: ['removed.md'] }]
+        })).resolves.toBeUndefined();
+
+        expect(qMock.deleteBySource).toHaveBeenCalledWith('removed.md');
+        expect(qMock.upsert).not.toHaveBeenCalled();
+    });
+});
+
+describe('GiteaQdrantSync.syncFile (deleted file)', () => {
+    it('removes embeddings when the file no longer exists (404)', async () => {
+        const notFound = new Error('Failed to fetch file a.md: HTTP 404 - Not Found');
+        notFound.status = 404;
+        gMock.fetchFile.mockRejectedValueOnce(notFound);
+
+        await sync.syncFile({ repository: { html_url: 'http://x/a' }, after: 'main' }, 'a.md', 'main', 'owner/repo/a.md');
+
+        expect(qMock.deleteBySource).toHaveBeenCalledWith('a.md');
+        expect(qMock.upsert).not.toHaveBeenCalled();
+        expect(lMock.embed).not.toHaveBeenCalled();
+    });
+
+    it('re-throws non-404 fetch errors', async () => {
+        const serverError = new Error('Failed to fetch file a.md: HTTP 500 - Server Error');
+        serverError.status = 500;
+        gMock.fetchFile.mockRejectedValueOnce(serverError);
+
+        await expect(sync.syncFile({ repository: { html_url: 'http://x/a' }, after: 'main' }, 'a.md', 'main', 'owner/repo/a.md'))
+            .rejects.toThrow('HTTP 500');
+        expect(qMock.deleteBySource).not.toHaveBeenCalled();
+    });
 });
 
 describe('GiteaQdrantSync.limiter (ConcurrencyLimiter)', () => {

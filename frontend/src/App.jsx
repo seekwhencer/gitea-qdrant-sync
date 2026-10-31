@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SearchBar from './components/SearchBar';
 import ReSyncButton from './components/ReSyncButton';
+import ThemeSwitcher from './components/ThemeSwitcher';
 import StreamingResults from './components/StreamingResults';
 import Conversation from './components/Conversation';
 import { useSearchStream } from './hooks/useSearch';
@@ -50,7 +51,10 @@ export default function App() {
     <main className="main__container">
       <header className="app__header">
         <h1>Gitea Markdown Search RAG</h1>
-        <ReSyncButton />
+        <div className="app__header-actions">
+          <ThemeSwitcher />
+          <ReSyncButton />
+        </div>
       </header>
       <div className="app__layout">
         <section className="app__secondary">

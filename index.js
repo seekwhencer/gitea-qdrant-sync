@@ -25,6 +25,7 @@ class App {
             embeddingsApi: config.embeddingsApi,
             embeddingsUrl: config.embeddingsUrl,
             embeddingsModel: config.embeddingsModel,
+            embeddingsHost: config.embeddingsHost,
             chatApi: config.chatApi,
             chatUrl: config.chatUrl,
             chatModel: config.chatModel,
@@ -44,6 +45,7 @@ class App {
             qdrant: this.qdrant,
             llm: this.llm,
             systemPrompt: config.llmSystemPrompt,
+            topK: config.searchTopK,
             logger: this.logger
         });
 

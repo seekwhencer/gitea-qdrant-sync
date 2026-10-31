@@ -32,11 +32,12 @@ class Search {
         embeddingsApi,
         embeddingsUrl,
         embeddingsModel,
+        embeddingsHost,
         chatApi,
         chatUrl,
         chatModel,
         systemPrompt,
-        topK = 9999,
+        topK = 10,
         logger
     } = {}) {
         this.qdrantCollection = qdrantCollection;
@@ -46,7 +47,7 @@ class Search {
         this.logger = logger || { log: () => {}, error: () => {} };
         this.qdrant = qdrant || new Qdrant({ url: qdrantUrl, port: qdrantPort, collection: qdrantCollection, logger: this.logger });
         this.llm = llm || new Llm({
-            embeddingsApi, embeddingsUrl, embeddingsModel,
+            embeddingsApi, embeddingsUrl, embeddingsModel, embeddingsHost,
             chatApi, chatUrl, chatModel,
             logger: this.logger
         });

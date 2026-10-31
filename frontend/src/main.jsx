@@ -9,6 +9,7 @@ import './style/components/SearchBar.css';
 import './style/components/SearchResults.css';
 import './style/components/Conversation.css';
 import './style/components/ReSyncButton.css';
+import './style/components/ThemeSwitcher.css';
 
 const queryClient = new QueryClient();
 

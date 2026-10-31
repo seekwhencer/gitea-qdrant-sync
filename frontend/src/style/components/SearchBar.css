@@ -3,6 +3,7 @@
   gap: var(--space-3);
   margin-bottom: var(--space-6);
   height: var(--space-12);
+  flex-shrink: 0;
 }
 
 .search-bar__input {

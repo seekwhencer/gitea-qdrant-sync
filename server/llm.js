@@ -19,6 +19,7 @@ class Llm {
         embeddingsApi = 'ollama',
         embeddingsUrl = '',
         embeddingsModel = '',
+        embeddingsHost = '',
         chatApi = 'ollama',
         chatUrl = '',
         chatModel = '',
@@ -27,7 +28,8 @@ class Llm {
         this.embeddingsConfig = {
             api: (embeddingsApi === 'openai') ? 'openai' : 'ollama',
             baseUrl: this.normalizeUrl(embeddingsUrl),
-            modelName: embeddingsModel
+            modelName: embeddingsModel,
+            hostHeader: embeddingsHost
         };
         this.chatConfig = {
             api: (chatApi === 'openai') ? 'openai' : 'ollama',
@@ -66,12 +68,13 @@ class Llm {
         try {
             const cfg = this.embeddingsConfig;
             const base = this.normalizeUrl(cfg.baseUrl);
+            const headers = cfg.hostHeader ? { Host: cfg.hostHeader } : undefined;
 
             if (cfg.api === 'openai') {
                 const res = await axios.post(`${base}/embeddings`, {
                     model: cfg.modelName,
                     input: text
-                });
+                }, { headers });
                 const body = res.data;
                 if (Array.isArray(body.data)) {
                     vector = body.data[0].embedding;
@@ -82,7 +85,7 @@ class Llm {
                 const res = await axios.post(`${base}/api/embed`, {
                     model: cfg.modelName,
                     input: text
-                });
+                }, { headers });
                 const body = res.data;
                 if (Array.isArray(body.embeddings)) {
                     vector = body.embeddings[0];
@@ -212,34 +215,30 @@ class Llm {
     async *streamChunks(messages, options = {}) {
         const cfg = this.chatConfig;
         const base = this.normalizeUrl(cfg.baseUrl);
+        const { signal, ...llmOptions } = options;
 
-        if (cfg.api === 'openai') {
-            const res = await fetch(`${base}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: options.model || cfg.modelName,
-                    messages,
-                    stream: true,
-                    ...options
-                })
-            });
-            if (!res.ok || !res.body) throw new Error(`Chat-Streaming fehlgeschlagen: ${res.status}`);
-            yield* this._readSSE(res.body);
-        } else {
-            const res = await fetch(`${base}/api/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: options.model || cfg.modelName,
-                    messages,
-                    stream: true,
-                    ...options
-                })
-            });
-            if (!res.ok || !res.body) throw new Error(`Chat-Streaming fehlgeschlagen: ${res.status}`);
-            yield* this._readNDJSON(res.body);
+        const payload = {
+            model: llmOptions.model || cfg.modelName,
+            messages,
+            stream: true,
+            ...llmOptions
+        };
+
+        const url = (cfg.api === 'openai') ? `${base}/chat/completions` : `${base}/api/chat`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal
+        });
+
+        if (!res.ok) {
+            const detail = await res.text().catch(() => '');
+            throw new Error(`Chat-Streaming fehlgeschlagen: ${res.status} ${detail}`.trim());
         }
+        if (!res.body) throw new Error('Chat-Streaming fehlgeschlagen: keine Response-Body');
+
+        yield* (cfg.api === 'openai') ? this._readSSE(res.body) : this._readNDJSON(res.body);
     }
 
     /**

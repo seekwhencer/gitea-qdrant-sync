@@ -6,9 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch --watch-path=./server --watch-path=./index.js --watch-path=./config.json index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "screenshots": "node ./.docs/shot.js"
   },
   "devDependencies": {
+    "playwright": "^1.64.1",
     "vitest": "^2.1.8"
   },
   "dependencies": {

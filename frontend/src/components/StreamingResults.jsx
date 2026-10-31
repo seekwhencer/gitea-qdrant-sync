@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import ThinkBlock from './ThinkBlock';
 import MarkdownRenderer from './Markdown';
 
@@ -18,6 +19,15 @@ function errorMessage(error) {
 }
 
 export default function StreamingResults({ thinking, answer, question, statusMessage, pending, error, done }) {
+  const sectionRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const el = sectionRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [thinking, answer, statusMessage]);
+
   if (error) {
     let severity = 'other';
     if (error.name === 'NetworkError' || error.status === 0) severity = 'connection';
@@ -27,6 +37,7 @@ export default function StreamingResults({ thinking, answer, question, statusMes
 
     return (
       <section
+        ref={sectionRef}
         className={`search-results search-results--error search-results--${severity}`}
         aria-live="polite"
       >
@@ -39,7 +50,7 @@ export default function StreamingResults({ thinking, answer, question, statusMes
 
   if (streaming && !thinking && !answer) {
     return (
-      <section className="search-results search-results--loading" aria-live="polite">
+      <section ref={sectionRef} className="search-results search-results--loading" aria-live="polite">
         {question && <p className="search-results__question">{question}</p>}
         <div className="search-results__loading-flex">
           <span className="spinner" role="status" aria-hidden="true" />
@@ -56,7 +67,7 @@ export default function StreamingResults({ thinking, answer, question, statusMes
 
   if (done && !thinking && !answer && !error) {
     return (
-      <section className="search-results search-results--empty" aria-live="polite">
+      <section ref={sectionRef} className="search-results search-results--empty" aria-live="polite">
         <p className="search-results__empty">No matching documents found.</p>
       </section>
     );
@@ -64,7 +75,7 @@ export default function StreamingResults({ thinking, answer, question, statusMes
 
   if (answer || thinking) {
     return (
-      <section className="search-results search-results--success" aria-live="polite">
+      <section ref={sectionRef} className="search-results search-results--success" aria-live="polite">
         <h2 className="search-results__title">Result</h2>
         {question && <p className="search-results__question">{question}</p>}
         <div className="search-results__answer">
@@ -80,7 +91,7 @@ export default function StreamingResults({ thinking, answer, question, statusMes
   }
 
   return (
-    <section className="search-results search-results--empty" aria-live="polite">
+    <section ref={sectionRef} className="search-results search-results--empty" aria-live="polite">
       <p className="search-results__empty">No search yet – enter a question above.</p>
     </section>
   );

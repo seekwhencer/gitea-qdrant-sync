@@ -72,6 +72,7 @@ class GiteaQdrantSync {
         embeddingsApi,
         embeddingsUrl,
         embeddingsModel,
+        embeddingsHost,
         chatApi,
         chatUrl,
         chatModel,
@@ -93,7 +94,7 @@ class GiteaQdrantSync {
         this.gitea = new Gitea({ url: giteaApiUrl, token: giteaToken, logger: this.logger });
         this.qdrant = qdrant || new Qdrant({ url: qdrantUrl, port: qdrantPort, collection: qdrantCollection, logger: this.logger });
         this.llm = llm || new Llm({
-            embeddingsApi, embeddingsUrl, embeddingsModel,
+            embeddingsApi, embeddingsUrl, embeddingsModel, embeddingsHost,
             chatApi, chatUrl, chatModel,
             logger: this.logger
         });
@@ -120,7 +121,7 @@ class GiteaQdrantSync {
         const name = repository?.name;
         this.logger.log(this.label, `Push received for repository: ${repository.html_url}`);
 
-        const changedFiles = this.gitea.collectMarkdownFiles(payload.commits || []);
+        const changedFiles = [...this.gitea.collectMarkdownFiles(payload.commits || [])];
         if (changedFiles.length === 0) return;
 
         // Process files concurrently, bounded by the concurrency limiter.
@@ -247,6 +248,9 @@ class GiteaQdrantSync {
      * Synchronizes a single file: loads content, splits into chunks, creates embeddings,
      * and stores them in Qdrant.
      *
+     * If the file no longer exists in the repository (HTTP 404), its previously indexed
+     * points are removed from Qdrant instead of being re-upserted.
+     *
      * Chunks of one file are processed in parallel (Promise.all over the chunk list).
      * Upserts that fail due to rate limits are retried with exponential backoff.
      *
@@ -257,7 +261,21 @@ class GiteaQdrantSync {
     async syncFile(payload, filePath, ref = '', path = '') {
         this.logger.log(this.label, `Processing file: ${filePath}`);
 
-        const content = await this.gitea.fetchFile(payload.repository, filePath, payload.after);
+        let content;
+        try {
+            content = await this.gitea.fetchFile(payload.repository, filePath, payload.after);
+        } catch (error) {
+            if (error?.status === 404) {
+                this.logger.log(this.label, `File ${filePath} no longer exists, removing its embeddings.`);
+                try { await this.qdrant.deleteBySource(filePath); }
+                catch (err) {
+                    if (!this.qdrant.isCollectionNotFoundError(err)) throw err;
+                }
+                return;
+            }
+            throw error;
+        }
+
         const chunks = this.chunkContent(content);
 
         // Remove previously indexed points for this source path so the upsert below

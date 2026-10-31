@@ -10,13 +10,13 @@ vi.mock('axios', () => ({
 describe('Gitea.collectMarkdownFiles', () => {
     const gitea = new Gitea({ url: 'http://gitea.test', token: 't' });
 
-    it('collects and dedupes .md files from added and modified commits', () => {
+    it('collects and dedupes .md files from added, modified and removed commits', () => {
         const commits = [
-            { added: ['a.md', 'b.txt'], modified: ['a.md', 'c.md'] },
-            { added: ['dir/d.md'] }
+            { added: ['a.md', 'b.txt'], modified: ['a.md', 'c.md'], removed: ['c.md', 'd.md'] },
+            { added: ['dir/d.md'], removed: ['gone.md'] }
         ];
         const result = gitea.collectMarkdownFiles(commits);
-        expect([...result].sort()).toEqual(['a.md', 'b.txt', 'c.md', 'dir/d.md']);
+        expect([...result].sort()).toEqual(['a.md', 'c.md', 'd.md', 'dir/d.md', 'gone.md']);
     });
 
     it('ignores non-markdown files and handles empty commits', () => {

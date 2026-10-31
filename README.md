@@ -1,15 +1,15 @@
-# gitea-qdrant-sync
+<p align='center'>
+  <h1 align='center' style='margin-bottom:0px'>gitea-qdrant-sync</h1>
+  <p align='center'>RAG + MCP + Web UI</p>
+</p>
 
-A Node.js service that synchronizes Markdown files from Gitea repositories into a
-[Qdrant](https://qdrant.tech) vector database. On a push event, the affected
-Markdown files are fetched, split into chunks, converted into embeddings with the
-help of an LLM (e.g. [Ollama](https://ollama.com)) and stored as points with
-metadata in Qdrant. This creates a vector-based search and retrieval source (RAG)
-for the repository documentation. Questions can be answered via the `/search`
-endpoint, which retrieves relevant chunks and generates an answer with a chat LLM.  
-The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context
-Protocol) server over [Streamable HTTP](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp`, exposing `search` and `sync` tools for use
-by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
+[![Dashboard (dark)](.docs/screenshots/search-answer.png)](.docs/screenshots/search.webm) 
+
+- A Node.js service that synchronizes **Markdown** files from **Gitea** repositories into a [Qdrant](https://qdrant.tech) vector database.
+- On a push event, the affected Markdown files are fetched, split into chunks, converted into embeddings with the help of an LLM (e.g. [Ollama](https://ollama.com)) and stored as points with metadata in Qdrant.
+- This creates a vector-based search and retrieval source (RAG) for the repository documentation. Questions can be answered via the `/search` endpoint, which retrieves relevant chunks and generates an answer with a chat LLM. 
+
+- The service also exposes an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server over [Streamable HTTP](https://modelcontextprotocol.io/docs/concepts/transports#streamable-http-transport) at `/mcp`, exposing `ask`, `search`, `sync` and `sync-all` tools for use by AI assistants such as Claude Code, Cursor, or any MCP-compatible client.  
 
 Done by Matthias Kallenbach | [skwncr.net](https://skwncr.net) 
 Using a local LLM:
@@ -17,7 +17,8 @@ Using a local LLM:
  - opencode / kilo code
  - VS Code + kilo code extension
  - Tiel Coder 35B A3B MTP UD Q4_K_XL
- - NVIDIA Nemotron 3.5 Bolt 74B A9B 24GB GGUF 
+ - NVIDIA Nemotron 3.5 Bolt 74B A9B 24GB GGUF
+ - Qwen3.8 + Draft Model
 
 ## Prerequisites
 
@@ -31,8 +32,10 @@ The service itself does not host Qdrant, the embedding model, or the chat LLM �
 ## How it works
 
 1. A push event in a Gitea repository triggers the `/webhook` endpoint.
-2. All added and changed `.md` files are collected.
-3. Each file is fetched via the Gitea API as raw content.
+2. All added, changed and removed `.md` files are collected.
+3. Each file is fetched via the Gitea API as raw content. If a file no longer
+   exists in the repository (HTTP 404), its previously indexed points are
+   removed from Qdrant instead of being re-upserted.
 4. The content is split into chunks with a recursive Markdown splitter that splits at hierarchical boundaries (headings `#`/`##`/`###`, blank-line separated paragraphs, newlines) and merges the parts up to a configurable size (`QDRANT_CHUNK_MAX_SIZE`, default `768`) without breaking those boundaries.
 5. Each chunk is converted into a vector via the LLM's embedding API.
 6. The vector, together with the text (as `text`) and the metadata
@@ -80,12 +83,15 @@ The environment variables take precedence over `config.json`. In Docker they are
 | `QDRANT_PORT`             | Port of the Qdrant instance (default: `80`)                                                                           |
 | `QDRANT_COLLECTION`       | Name of the Qdrant collection (default: `research`)                                                                   |
 | `QDRANT_CHUNK_MAX_SIZE`   | Maximum size of a chunk in characters (default: `768`)                                                                |
+| `SEARCH_TOP_K`            | Number of chunks retrieved from Qdrant for a RAG answer (default: `10`)                                               |
 | `EMBEDDINGS_API`          | Embedding backend: `ollama` (default) posts to `{URL}/api/embed`, `openai` posts to `{URL}/embeddings`               |
 | `EMBEDDINGS_URL`          | Base URL of the embedding LLM host (e.g. `http://localhost:11434` for Ollama or `http://localhost:8080/v1` for llama.cpp) |
+| `EMBEDDINGS_HOST`         | Optional `Host` header sent with embedding requests (useful behind a reverse proxy)                                   |
 | `EMBEDDINGS_MODEL`        | Embedding model name (default: `nomic-embed-text`)                                                                    |
 | `CHAT_API`                | Chat backend: `ollama` (default) posts to `{URL}/api/chat`, `openai` posts to `{URL}/chat/completions`               |
 | `CHAT_URL`                | Base URL of the chat LLM host                                                                                         |
 | `CHAT_MODEL`              | Chat model name                                                                                                        |
+| `LLM_SYSTEM_PROMPT`       | System prompt used by the chat LLM when generating RAG answers                                                        |
 | `GITEA_API_URL`           | Base URL of the Gitea API                                                                                             |
 | `GITEA_TOKEN`             | Personal Access Token for the Gitea API                                                                               |
 | `MCP_ENABLED`             | Enable the MCP server (`true` by default)                                                                             |
@@ -207,6 +213,8 @@ node index.js
   hand-written CSS in `src/style/` (no TypeScript, matching the rest of the repo).
 - The UI also includes a "Gitea Re-Sync" button that triggers a background
   re-sync of all repositories via `POST /sync-all`.
+- A theme switcher in the header toggles between `auto`, `light` and `dark`
+  color themes (default: `dark`). The choice is persisted in `localStorage`.
 
 The Express server serves the UI transparently: in development it runs the Vite
 dev server as middleware (hot reload), in production it serves the built files
@@ -234,6 +242,18 @@ npm run build
 The production build is created automatically by the Dockerfile before the server
 starts (see `compose.yml`).
 
+#### Screenshots
+
+The media in the README header is generated by a Playwright script:
+
+```bash
+npm run screenshots
+```
+
+It captures `dashboard.png`, a mid-stream `search-answer.png` and a
+`search.webm` recording into `.docs/screenshots/`. It requires a running
+instance (default `http://localhost:3000`, override with `BASE_URL`).
+
 ## Endpoints
 
 ### `GET /`
@@ -242,29 +262,19 @@ The Web UI
 
 ### `POST /webhook`
 
-Called by Gitea. Processes only events of the type
-`x-gitea-event: push`. The payload matches the Gitea push webhook
-(`repository`, `commits` with `added`/`modified`).
+Called by Gitea. Processes only events of the type `x-gitea-event: push`. The payload matches the Gitea push webhook (`repository`, `commits` with `added`/`modified`).
 
 ### `POST /search`
 
-Accepts a JSON body with a `question` field and returns `{ "answer": "..." }`
-based on the synchronized documentation. Returns `404` if no answer could be
-generated.
+Accepts a JSON body with a `question` field and returns `{ "answer": "..." }` based on the synchronized documentation. Returns `404` if no answer could be generated.
 
 ### `POST /search/stream`
 
-Streams the RAG answer as Server-Sent Events. Accepts a JSON body with a
-`question` field. Yields events of type `status` (embedding/search/thinking
-phases), `thinking` (reasoning tokens), `answer` (content tokens), `empty`
-(no results), `done` (completion), and `error`. Useful for displaying
-progressive answers in the frontend.
+Streams the RAG answer as Server-Sent Events. Accepts a JSON body with a `question` field. Yields events of type `status` (embedding/search/thinking phases), `thinking` (reasoning tokens), `answer` (content tokens), `empty` (no results), `done` (completion), and `error`. Useful for displaying progressive answers in the frontend.
 
 ### `POST /sync-all`
 
-Triggers a background re-sync of all Markdown files of all Gitea repositories
-known to Qdrant. Returns `{ "status": "started", "message": "..." }` with
-HTTP 202. The frontend shows a "Gitea Re-Sync" button that calls this endpoint.
+Triggers a background re-sync of all Markdown files of all Gitea repositories known to Qdrant. Returns `{ "status": "started", "message": "..." }` with HTTP 202. The frontend shows a "Gitea Re-Sync" button that calls this endpoint.
 
 ### `GET /health`
 
@@ -284,49 +294,5 @@ automatically by the service.
 
 ## Notes on customization
 
-In `server/config.js`, default values for the embedding model (`embeddingsModel`,
-default `nomic-embed-text`), the chat model (`chatModel`), the Qdrant collection
-(`qdrantCollection`, default `research`) and the maximum chunk size
-(`qdrantChunkMaxSize`, default `768` characters per chunk) can be changed. The
-chunking uses a recursive Markdown splitter in `server/sync.js`. The point ID
-generation in `server/qdrant.js` (`upsert`) uses a SHA-256 hash of the chunk text
-and repository URL, making it content-stable and idempotent: re-syncing the same
-file replaces existing points rather than duplicating them.
+In `server/config.js`, default values for the embedding model (`embeddingsModel`, default `nomic-embed-text`), the chat model (`chatModel`), the Qdrant collection (`qdrantCollection`, default `research`) and the maximum chunk size (`qdrantChunkMaxSize`, default `768` characters per chunk) can be changed. The chunking uses a recursive Markdown splitter in `server/sync.js`. The point ID generation in `server/qdrant.js` (`upsert`) uses a SHA-256 hash of the chunk text and repository URL, making it content-stable and idempotent: re-syncing the same file replaces existing points rather than duplicating them.
 
-## Project structure
-
-```
-.
-├── index.js                 # App: wires Qdrant, LLM, Sync, Search and the Server together, starts it
-├── server/
-│   ├── index.js             # Express HTTP server: routes, error handling, graceful shutdown
-│   ├── router.js            # Route definitions: /health, /webhook, /search, serves the UI
-│   ├── frontendRouter.js    # Serves the Vite/React UI (Vite middleware in dev, static build in prod)
-│   ├── sync.js              # Core logic: push event → chunk → embed → Qdrant
-│   ├── gitea.js             # Gitea API client: fetch files, collect changed .md files
-│   ├── search.js            # RAG: embed question, retrieve chunks, answer with chat LLM
-│   ├── llm.js               # Embedding + chat client (Ollama / OpenAI-compatible)
-│   ├── qdrant.js            # Qdrant client: upsert, search, delete points
-│   ├── mcp.js               # MCP service class: creates McpServer instances with ask/search/sync/sync-all tools
-│   ├── mcpRouter.js         # MCP routes: createMcpHandler + toNodeHandler for Streamable HTTP
-│   ├── config.js            # Config loader (env + config.json)
-│   └── logger.js            # Simple logger wrapper used across services
-├── frontend/                # Vite + React (19) search UI for POST /search
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── package.json
-│   └── src/
-│       ├── main.jsx         # React root, QueryClientProvider, Router
-│       ├── App.jsx          # Routes
-│       ├── api/             # fetch wrappers (client.js, search.js)
-│       ├── hooks/           # React-Query hooks (useSearch, ...)
-│       ├── components/      # SearchBar, SearchResults, Conversation
-│       └── style/           # hand-written CSS
-├── config.json              # Default values (optional, created if needed)
-├── compose.yml              # Docker Compose definition of the service
-├── compose-local-dev.yml    # Docker Compose for local development with hot reload
-├── Dockerfile               # Node 22 (Alpine) base image, builds the frontend
-├── .env.default             # Template for the environment variables
-├── .env                     # Environment variables (not committed)
-└── package.json
-```
